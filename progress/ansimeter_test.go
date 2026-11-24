@@ -293,3 +293,16 @@ func (ansiSuite) TestWrite(c *check.C) {
 		"\r<MR>123456789x<ME>",
 	}, ""))
 }
+
+// the table of character widths is built by the first width a meter needs,
+// once, and not as the package loads
+func (ansiSuite) TestWidthTableBuiltOnFirstUse(c *check.C) {
+	built := 0
+	defer progress.MockWidthTable(&built)()
+	c.Check(built, check.Equals, 0)
+
+	c.Check(progress.Norm(3, []rune("abcdef")), check.DeepEquals, []rune("ab…"))
+	c.Check(built, check.Equals, 1)
+	c.Check(progress.Norm(5, []rune("日本語")), check.DeepEquals, []rune("日本…"))
+	c.Check(built, check.Equals, 1)
+}

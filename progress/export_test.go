@@ -21,6 +21,7 @@ package progress
 
 import (
 	"io"
+	"sync"
 
 	"github.com/snapcore/snapd/testutil"
 )
@@ -118,3 +119,14 @@ var (
 	Norm    = norm
 	Spinner = spinner
 )
+
+// MockWidthTable counts the builds of the table of character widths, from a
+// state where it was not built yet
+func MockWidthTable(built *int) (restore func()) {
+	oldCreate, oldOnce := createWidthTable, widthTableOnce
+	createWidthTable = func() { *built++ }
+	widthTableOnce = &sync.Once{}
+	return func() {
+		createWidthTable, widthTableOnce = oldCreate, oldOnce
+	}
+}

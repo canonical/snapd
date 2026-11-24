@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"time"
 	"unicode"
 
@@ -83,9 +84,22 @@ func init() {
 	//
 	// See "Ambiguous Characters" in http://www.unicode.org/reports/tr11/
 	runewidth.DefaultCondition.EastAsianWidth = false
+}
 
-	// Speed up the process of handling the width of characters.
-	runewidth.DefaultCondition.CreateLUT()
+// createWidthTable speeds up the width of characters with a table of every
+// code point. It takes a while to build, 15 ms on a fast machine, and every
+// program that links this package would pay for it as it starts, snapd and
+// snap included, whether it draws a progress bar or not: it is built when the
+// first width is needed instead.
+var (
+	createWidthTable = runewidth.DefaultCondition.CreateLUT
+	widthTableOnce   = &sync.Once{}
+)
+
+// runeWidthOf returns the width of r in columns.
+func runeWidthOf(r rune) int {
+	widthTableOnce.Do(func() { createWidthTable() })
+	return runewidth.RuneWidth(r)
 }
 
 func (p *ANSIMeter) Start(label string, total float64) {
@@ -98,7 +112,7 @@ func (p *ANSIMeter) Start(label string, total float64) {
 func runeWidth(runes []rune) int {
 	width := 0
 	for _, r := range runes {
-		width += runewidth.RuneWidth(r)
+		width += runeWidthOf(r)
 	}
 	return width
 }
@@ -112,10 +126,10 @@ func norm(col int, msg []rune) []rune {
 	i := 0
 	for i = 0; i < len(msg); i++ {
 		r := msg[i]
-		w := runewidth.RuneWidth(r)
+		w := runeWidthOf(r)
 		if width+w > col {
 			if width == col {
-				width -= runewidth.RuneWidth(out[i-1])
+				width -= runeWidthOf(out[i-1])
 				i -= 1
 			}
 			// '…' (U+2026) is used to indicate text is too long. In most of
@@ -236,7 +250,7 @@ func (*ANSIMeter) Notify(msgstr string) {
 		lineWidth := 0
 		for i = 0; i < len(msg); i++ {
 			r := msg[i]
-			w := runewidth.RuneWidth(r)
+			w := runeWidthOf(r)
 			if w+lineWidth > col {
 				break
 			}
