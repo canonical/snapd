@@ -115,9 +115,8 @@ func readDriversTreeMeta(destDir string) (driversTreeMeta, error) {
 	return meta, nil
 }
 
-// DriversTreeOutdated returns true when the kernel modules & firmware tree at
-// destDir was built by an older version of the generator code, indicating it
-// may need to be checked or rebuilt.
+// DriversTreeOutdated returns true when the tree at destDir was built by an
+// older generator or has a pending update that may have left it incomplete.
 func DriversTreeOutdated(destDir string) (bool, error) {
 	v, err := readDriversTreeMeta(destDir)
 	if err != nil {
@@ -127,29 +126,16 @@ func DriversTreeOutdated(destDir string) (bool, error) {
 		}
 		return false, err
 	}
+	// A pending update may have changed live links, even when the
+	// completed marker records a newer generator.
+	if _, err := os.Lstat(driversTreeMetaPath(destDir) + ".pending"); err == nil {
+		return true, nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return false, err
+	}
 	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
 		kernelDriversTreeGeneratorVersion, v.GeneratorVersion)
-	// Pending means the live tree may be incomplete, even if a newer
-	// generator wrote it. Only a newer completed tree blocks a downgrade.
-	pending := false
-	for _, suffix := range []string{".pending", ""} {
-		data, err := os.ReadFile(driversTreeMetaPath(destDir) + suffix)
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return false, err
-		}
-		var marker driversTreeMeta
-		if json.Unmarshal(data, &marker) != nil {
-			return true, nil
-		}
-		if suffix == "" && !pending && marker.GeneratorVersion > kernelDriversTreeGeneratorVersion {
-			return false, nil
-		}
-		pending = pending || suffix != ""
-	}
-	return pending || kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
+	return kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
 }
 
 // We expect as a minimum something that starts with three numbers
@@ -473,7 +459,8 @@ func firmwareLinkState(path string, d firmwareSymlinkTarget, owned func(string) 
 	return false, false, nil
 }
 
-// syncFirmwareSymlinks updates live children without replacing their parent.
+// syncFirmwareSymlinks updates links inside live lib/firmware or its updates
+// directory without replacing directories used by readers or holding local files.
 func syncFirmwareSymlinks(desired []firmwareSymlinkTarget, liveFwDir, protectedName string, owned func(string) bool) error {
 	if err := os.MkdirAll(liveFwDir, 0755); err != nil {
 		return err
@@ -585,15 +572,24 @@ type ModulesCompMountPoints struct {
 }
 
 // EnsureKernelDriversTree builds or updates the kernel modules and firmware
-// with the supplied mounts. The tree is built under destDir. kMntPts.Current
-// mounts are used for discovery and depmod; links point at Target. When
-// updating a currently used tree, Existing root and lib/{modules,firmware}
-// inodes remain stable for bind mounts.
+// with the supplied mounts. Current mounts are used for discovery and depmod;
+// links point at Target.
+//
+// It builds a candidate next to destDir, then either publishes it as a new tree
+// (e.g. kernel installation) or checks live entries before updating them in a
+// live tree (e.g. in response to component changes).
+//
+// For existing kernel tree, the code creates a pending metadata file, which
+// captures information about provided inputs. The pending marker precedes live
+// changes and is completed only after syncing. Live tree updates preserve the
+// root and lib/{modules,firmware} such that early-boot bind mounts are still
+// valid.
 func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string) (retErr error) {
 	destDir = filepath.Clean(destDir)
 	rootInfo, err := os.Lstat(destDir)
 
-	// if destination exists, we're rebuilding an existing kernel tree
+	// If destination exists, we're rebuilding an existing kernel tree, e.g. in
+	// response to components being changed.
 	isRebuild := err == nil
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -605,8 +601,10 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 	var liveMods, liveFw string
 	if isRebuild {
-		// Is this needed? the lib/modules lib/firmware are most likely
-		// directories anyway, even on hybrid system
+		// Reject changed parent directories before touching live entries. It's
+		// unlikely for things to be wrong here on Core, but on hybrid, we may
+		// be dealing with a user who tinkered with our previously generated
+		// setup.
 		_, liveMods, liveFw, err = checkLiveKernelTree(destDir)
 		if err != nil {
 			return err
@@ -653,12 +651,13 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		return err
 	}
 	// Version 0 had no marker; both 0 and 1 could copy component aliases as relative links.
-	legacyRelativeFirmware := kernelDriversTreeGeneratorVersion == 2 &&
+	legacyRelativeFirmware := kernelDriversTreeGeneratorVersion >= 2 &&
 		(old.GeneratorVersion == 0 || old.GeneratorVersion == 1)
 
-	// TODO: If the completed marker matches the inputs, pending is absent,
-	// and links match, skip the candidate only after verifying copied
-	// modules.* and depmod output, including dynamic-module changes.
+	// TODO: possible future optimization - if the completed marker matches the
+	// inputs, pending is absent, and links match, skip the candidate only after
+	// verifying copied modules.* and depmod output, including dynamic-module
+	// changes.
 
 	// Build beside the destination so a prepared image and a running system
 	// both use their own filesystem for atomic renames.
@@ -677,7 +676,8 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	}
 
 	if kversion != "" {
-		// We have kernel modules, set them up.
+		// We have kernel modules, set them up. Internally also ensure depmod
+		// metdata is copied or rebuilt.
 		if err := createModulesSubtree(kMntPts, candidate, kversion, compsMntPts); err != nil {
 			return err
 		}
@@ -764,11 +764,14 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		}
 	}
 
-	// Only the parents of the versioned modules directory are bind-mounted.
-	// The /lib/firmware/updates can contain user entries, so reconcile its links
-	// individually rather than replacing the directory.
+	// Early boot bind-mounts our <dest>/lib/modules and <dest>/lib/firmware
+	// into their usual system locations. We can safely swap candidate kernel
+	// modules with <dest>/lib/modules/<kver> as it's a subdirectory. However,
+	// we have to carefully reconcile the contents of <dest>/lib/firmware as
+	// it's used as mount source and on top of that may contain additional blobs
+	// placed there by the user.
 	//
-	// make the component firmware appear before any modules from components can
+	// Make the component firmware appear before any modules from components can
 	// make use of it.
 	if err := syncFirmwareSymlinks(desiredUpdates, filepath.Join(liveFw, "updates"), "", componentLink); err != nil {
 		return err
