@@ -1559,7 +1559,7 @@ prepare_ubuntu_core() {
     fi
     retry -n 10 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
 
-    setup_snapd_proxy false
+    setup_snapd_proxy true
     setup_snapd_pkgproxy
 
     disable_journald_rate_limiting
