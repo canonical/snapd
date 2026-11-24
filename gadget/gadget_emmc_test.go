@@ -86,13 +86,10 @@ func (s *gadgetYamlEMMCSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.dir = c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "meta"), 0755), IsNil)
 	s.gadgetYamlPath = filepath.Join(s.dir, "meta", "gadget.yaml")
-}
-
-func (s *gadgetYamlEMMCSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
 }
 
 func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlEMMCNoID(c *C) {
