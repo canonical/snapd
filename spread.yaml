@@ -1116,9 +1116,9 @@ prepare: |
             # Ubuntu, Debian, Arch use AppArmor
             aa-enabled
             ;;
-        fedora-*|centos-*|opensuse-*-selinux-*)
+        fedora-*|centos-*|opensuse-*-selinux-*|opensuse-16.0-*)
             # Fedora, CentOS use SELinux
-            # Variants openSUSE use selinux
+            # SELinux variants of openSUSE and Leap 16 use SELinux
             selinuxenabled
             ;;
         opensuse-*)
