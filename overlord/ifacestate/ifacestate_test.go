@@ -9296,7 +9296,79 @@ func (u *udevMonitorMock) Stop() error {
 	return nil
 }
 
+// enableHotplug turns the experimental hotplug feature on, which the udev
+// monitor serves
+func (s *interfaceManagerSuite) enableHotplug(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hotplug", true), IsNil)
+	tr.Commit()
+}
+
+// udevMonitorSystem makes a system with a system snap, and counts the udev
+// monitors created
+func (s *interfaceManagerSuite) udevMonitorSystem(c *C) (created *int) {
+	created = new(int)
+	s.state.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	s.state.Unlock()
+	s.mockSnap(c, coreSnapYaml)
+	s.AddCleanup(ifacestate.MockUDevInitRetryTimeout(0 * time.Second))
+	s.AddCleanup(ifacestate.MockCreateUDevMonitor(func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface {
+		*created++
+		return &udevMonitorMock{}
+	}))
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	s.o.AddManager(mgr)
+	c.Assert(s.o.StartUp(), IsNil)
+	return created
+}
+
+// with the hotplug feature off, the default, and no hotplug slots, the udev
+// monitor would only list every device and drop the list: it is not started
+func (s *interfaceManagerSuite) TestUDevMonitorNotStartedWithoutHotplug(c *C) {
+	created := s.udevMonitorSystem(c)
+	for i := 0; i < 5; i++ {
+		c.Assert(s.se.Ensure(), IsNil)
+	}
+	c.Check(*created, Equals, 0)
+
+	// turning the feature on starts it with a later Ensure
+	s.enableHotplug(c)
+	c.Assert(s.se.Ensure(), IsNil)
+	c.Check(*created, Equals, 1)
+	s.se.Stop()
+}
+
+// hotplug slots left from when the feature was on start it, so that the
+// enumeration removes the slots of the devices that are gone
+func (s *interfaceManagerSuite) TestUDevMonitorStartedForHotplugSlotsLeft(c *C) {
+	created := s.udevMonitorSystem(c)
+	s.state.Lock()
+	s.state.Set("hotplug-slots", map[string]any{
+		"hotplugslot": map[string]any{
+			"name":        "hotplugslot",
+			"interface":   "test",
+			"hotplug-key": "1234",
+		}})
+	s.state.Unlock()
+
+	c.Assert(s.se.Ensure(), IsNil)
+	c.Check(*created, Equals, 1)
+	s.se.Stop()
+}
+
 func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
+	s.enableHotplug(c)
 	u := udevMonitorMock{}
 	st := s.state
 	st.Lock()
@@ -9336,6 +9408,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
+	s.enableHotplug(c)
 	u := udevMonitorMock{
 		ConnectError: fmt.Errorf("Connect failed"),
 	}
@@ -9386,6 +9459,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
+	s.enableHotplug(c)
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
 
