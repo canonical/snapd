@@ -69,7 +69,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	err := s.backend.ReloadRules(nil)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		// FIXME: temporary until spec.TriggerSubsystem() can be
 		// called during disconnect
@@ -92,7 +92,7 @@ fi
 		"udev output:\n"+
 		"failure 1\n")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 	})
 }
 
@@ -107,7 +107,7 @@ fi
 	err := s.backend.ReloadRules(nil)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		// FIXME: temporary until spec.TriggerSubsystem() can be
 		// called during disconnect
@@ -130,7 +130,7 @@ udev output:
 failure 2
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 	})
 }
@@ -141,7 +141,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithSubsystem(c *C) {
 	err := s.backend.ReloadRules([]string{"input"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--subsystem-match=input"},
 		{"udevadm", "settle", "--timeout=10"},
@@ -159,7 +159,7 @@ fi
 	err := s.backend.ReloadRules([]string{"input"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--subsystem-match=input"},
 		{"udevadm", "settle", "--timeout=10"},
@@ -172,7 +172,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithJoystick(c *C) {
 	err := s.backend.ReloadRules([]string{"input/joystick"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
 		{"udevadm", "settle", "--timeout=10"},
@@ -190,7 +190,7 @@ fi
 	err := s.backend.ReloadRules([]string{"input/joystick"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
 		{"udevadm", "settle", "--timeout=10"},
@@ -203,7 +203,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
 	err := s.backend.ReloadRules([]string{"input", "tty"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--subsystem-match=input"},
 		{"udevadm", "settle", "--timeout=10"},

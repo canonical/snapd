@@ -26,7 +26,7 @@ restore: |
     if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
         systemctl restart systemd-udevd
     fi
-    udevadm control --reload-rules
+    udevadm control --reload
     udevadm trigger
 
 execute: |
@@ -47,7 +47,7 @@ execute: |
     echo "When a udev rule assigning the device to the snap is added"
     content="SUBSYSTEM==\"tty\", KERNEL==\"ttyS4\", TAG+=\"snap_test-snapd-sh_sh\""
     echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-sh.rules
-    udevadm control --reload-rules
+    udevadm control --reload
     udevadm settle
     udevadm trigger
     udevadm settle

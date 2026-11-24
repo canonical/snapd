@@ -16,7 +16,7 @@ restore: |
     if [ -e /etc/udev/rules.d/70-snap.container-mgr-snap.rules ]; then
         rm /etc/udev/rules.d/70-snap.container-mgr-snap.rules
         systemctl restart systemd-udevd
-        udevadm control --reload-rules
+        udevadm control --reload
         udevadm trigger
     fi
 
@@ -88,7 +88,7 @@ execute: |
     echo "Even when devices are explicitly tagged for the snap"
     content="KERNEL==\"kmsg\", TAG+=\"container-mgr-snap_docker-support\""
     echo "$content" > /etc/udev/rules.d/70-snap.container-mgr-snap.rules
-    udevadm control --reload-rules
+    udevadm control --reload
     udevadm settle
     udevadm trigger
     udevadm settle

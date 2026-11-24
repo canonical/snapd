@@ -51,7 +51,7 @@ func udevadmTrigger(args ...string) error {
 
 // reloadRules runs three commands that reload udev rule database.
 //
-// The commands are: udevadm control --reload-rules
+// The commands are: udevadm control --reload
 //
 //	udevadm trigger --subsystem-nomatch=input
 //	udevadm settle --timeout=3
@@ -69,7 +69,7 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 		return nil
 	}
 
-	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
+	output, err := exec.Command("udevadm", "control", "--reload").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}

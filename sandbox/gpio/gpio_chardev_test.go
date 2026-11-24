@@ -388,7 +388,7 @@ func (s *exportUnexportTestSuite) TestExportGadgetChardevChip(c *C) {
 	c.Check(udevRulePath, testutil.FileEquals, expectedRule)
 	// Udev rules are reloaded and triggered
 	c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--name-match", "gpiochip3"},
 	})
 	// And virtual slot device is created
@@ -543,7 +543,7 @@ func (s *exportUnexportTestSuite) TestExportUnexportGpioChardevRunthrough(c *C) 
 	c.Check(udevRulePath, testutil.FileEquals, expectedRule)
 	// Udev rules are reloaded and triggered
 	c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "control", "--reload"},
 		{"udevadm", "trigger", "--name-match", "gpiochip3"},
 	})
 	// And virtual slot device is created

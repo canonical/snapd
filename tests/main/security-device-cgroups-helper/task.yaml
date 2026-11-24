@@ -45,7 +45,7 @@ execute: |
     # this will assign the /dev/full device to a snap
     content='KERNEL=="full", TAG+="snap_test-strict-cgroup-helper_sh" '
     echo "$content" > /etc/udev/rules.d/70-snap.test-strict-cgroup-helper.rules
-    udevadm control --reload-rules
+    udevadm control --reload
     udevadm settle
     udevadm trigger
     udevadm settle

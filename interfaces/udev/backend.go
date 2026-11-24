@@ -62,7 +62,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		b.preseed = true
 	}
 	// Since snapd 2.68 the udev backend, responsible for writing udev rules to
-	// /etc/udev/rules.d and for calling udevadm control --reload-rules, as
+	// /etc/udev/rules.d and for calling udevadm control --reload, as
 	// well as udevadm trigger (with a number of options), is no longer enabled
 	// in containers. System administrators retain ability to manage access to
 	// real devices at the container level.
