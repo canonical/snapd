@@ -36,10 +36,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/strutil"
@@ -590,7 +590,7 @@ func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
 // by other means.
 func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
-		rootDir = dirs.GlobalRootDir
+		rootDir = rootdir.RootDir
 	}
 	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
@@ -1441,7 +1441,7 @@ const (
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
-	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
+	return filepath.Join(rootdir.RootDir, "/etc/systemd/system", escapedPath+".mount")
 }
 
 // mountUnitPathWithLifetime returns the path of a {,auto}mount unit created in
@@ -1449,15 +1449,15 @@ func MountUnitPath(baseDir string) string {
 // directory for the root filesystem.
 func mountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir, rootDir string) string {
 	if rootDir == "" {
-		rootDir = dirs.GlobalRootDir
+		rootDir = rootdir.RootDir
 	}
 	escapedPath := EscapeUnitNamePath(mountPointDir)
 	var servicesPath string
 	switch lifetime {
 	case Persistent:
-		servicesPath = dirs.SnapServicesDirUnder(rootDir)
+		servicesPath = filepath.Join(rootDir, "/etc/systemd/system")
 	case Transient:
-		servicesPath = dirs.SnapRuntimeServicesDirUnder(rootDir)
+		servicesPath = filepath.Join(rootDir, "/run/systemd/system")
 	default:
 		panic(fmt.Sprintf("unknown systemd unit lifetime %q", lifetime))
 	}
@@ -1664,7 +1664,11 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	unit := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
+	baseDir, err := rootdir.StripRootDir(mountedDir)
+	if err != nil {
+		return err
+	}
+	unit := ExistingMountUnitPath(baseDir)
 	if unit == "" {
 		return nil
 	}
