@@ -21,14 +21,16 @@
 package configcore
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -170,40 +172,54 @@ func validateRefreshRateLimit(tr RunTransaction) error {
 }
 
 func validateRefreshDeltaFormats(tr RunTransaction) error {
-	_, err := snapstate.RefreshDeltaFormats(tr)
-	return err
-}
-
-// EnsureRefreshDeltaFormats persists platform defaults when the option is absent.
-// The legacy experimental flag ensures both delta formats are configured.
-// Otherwise explicit lists, including their order, are preserved.
-// The caller must hold the state lock.
-func EnsureRefreshDeltaFormats(tr RunTransaction) error {
-	var value any
-	if err := tr.GetMaybe("core", "refresh.delta-formats", &value); err != nil {
-		return err
-	}
-	enabled, err := features.Flag(tr, features.SnapDeltaFormat)
-	if err != nil {
-		return err
-	}
-	if value != nil && !enabled {
+	if !strutil.ListContains(tr.Changes(), "core.refresh.delta-formats") {
 		return nil
 	}
-	formats, err := snapstate.RefreshDeltaFormats(tr)
-	if err != nil {
+	var formats []string
+	if err := tr.GetMaybe("core", "refresh.delta-formats", &formats); err != nil {
 		return err
 	}
-	if enabled {
-		supported := squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true})
-		for _, format := range supported {
-			if !strutil.ListContains(formats, format) {
-				formats = supported
-				break
-			}
-		}
+	if formats == nil {
+		return nil
 	}
-	return tr.Set("core", "refresh.delta-formats", formats)
+	return snapstate.ValidateRefreshDeltaFormats(formats)
+}
+
+// MigrateRefreshDeltaFormats seeds refresh.delta-formats from the legacy
+// experimental flag, preserving the flag for rollback and any configured value.
+// The caller must hold the state lock.
+func MigrateRefreshDeltaFormats(tr RunTransaction) error {
+	var migrated bool
+	if err := tr.State().Get("refresh-delta-formats-migrated", &migrated); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if migrated {
+		return nil
+	}
+
+	var value any
+	err := tr.Get("core", "refresh.delta-formats", &value)
+	if err == nil {
+		return nil
+	}
+	if !config.IsNoOption(err) {
+		return err
+	}
+	var flag any
+	if err := tr.GetMaybe("core", "experimental.snap-delta-format", &flag); err != nil {
+		return err
+	}
+	switch flag {
+	case true, "true":
+		return tr.Set("core", "refresh.delta-formats", []string{"snap-1-1-xdelta3", "xdelta3"})
+	case false, "false":
+		return tr.Set("core", "refresh.delta-formats", []string{"xdelta3"})
+	case nil, "":
+		return nil
+	default:
+		logger.Noticef("cannot migrate invalid experimental.snap-delta-format value %v", flag)
+		return nil
+	}
 }
 
 func earlyRefreshDeltaFormatsFilter(values, early map[string]any) {
@@ -214,9 +230,15 @@ func earlyRefreshDeltaFormatsFilter(values, early map[string]any) {
 	}
 }
 
-func handleRefreshDeltaFormats(tr RunTransaction, _ *fsOnlyContext) error {
+// handleLegacySnapDeltaFormat migrates a legacy flag toggled at runtime unless
+// the transaction explicitly sets or unsets refresh.delta-formats.
+func handleLegacySnapDeltaFormat(tr RunTransaction, _ *fsOnlyContext) error {
+	if strutil.ListContains(tr.Changes(), "core.refresh.delta-formats") ||
+		!strutil.ListContains(tr.Changes(), "core.experimental.snap-delta-format") {
+		return nil
+	}
 	st := tr.State()
 	st.Lock()
 	defer st.Unlock()
-	return EnsureRefreshDeltaFormats(tr)
+	return MigrateRefreshDeltaFormats(tr)
 }

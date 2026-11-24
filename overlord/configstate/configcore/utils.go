@@ -107,13 +107,14 @@ func applyFilters(flagFilter func(f flags) filterFunc, values map[string]any) (m
 	for _, h := range handlers {
 		filter := flagFilter(h.flags())
 		if filter != nil {
-			// check to see if the length of the filtered values goes up after
-			// running the filter, if it does then we added a value and should
-			// return it
-			currentPreInstallConfigNum := len(filteredValues)
-			filter(values, filteredValues)
-			if len(filteredValues) > currentPreInstallConfigNum {
+			// Handlers can share keys, so select each independently.
+			matched := make(map[string]any)
+			filter(values, matched)
+			if len(matched) > 0 {
 				filteredHandlers = append(filteredHandlers, h)
+				for key, value := range matched {
+					filteredValues[key] = value
+				}
 			}
 		}
 	}

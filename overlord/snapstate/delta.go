@@ -39,26 +39,43 @@ type deltaFormatConfig interface {
 }
 
 // RefreshDeltaFormats returns the ordered, non-empty refresh.delta-formats list.
-// Explicit values must be supported by squashfs. When absent, the default is
+// Invalid stored entries are logged and skipped, falling back to xdelta3 if none
+// remain or the option cannot be read. When absent, the default is
 // xdelta3, preceded by snap-1-1-xdelta3 on amd64, ppc64el and suitable arm64 CPUs.
+// ARM suitability is checked using each processor's implementer and part IDs.
 // The caller must hold the state lock when using a config transaction.
-func RefreshDeltaFormats(tr deltaFormatConfig) ([]string, error) {
-	var formats []string
-	err := tr.Get("core", "refresh.delta-formats", &formats)
+func RefreshDeltaFormats(tr deltaFormatConfig) []string {
+	var value any
+	err := tr.Get("core", "refresh.delta-formats", &value)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, err
+		logger.Noticef("cannot read refresh.delta-formats, using xdelta3: %v", err)
+		return []string{"xdelta3"}
 	}
-	if formats != nil {
-		if len(formats) == 0 {
-			return nil, fmt.Errorf("refresh.delta-formats must contain at least one delta format")
+	if err == nil && value != nil {
+		entries, ok := value.([]any)
+		if !ok {
+			logger.Noticef("invalid refresh.delta-formats value %v: must be a list of delta formats, using xdelta3", value)
+			return []string{"xdelta3"}
 		}
 		supported := squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true})
-		for _, format := range formats {
-			if !strutil.ListContains(supported, format) {
-				return nil, fmt.Errorf("unsupported delta format %q in refresh.delta-formats", format)
+		var formats []string
+		for _, entry := range entries {
+			format, ok := entry.(string)
+			if !ok || !strutil.ListContains(supported, format) {
+				logger.Noticef("skipping unsupported delta format %v in refresh.delta-formats", entry)
+				continue
 			}
+			if strutil.ListContains(formats, format) {
+				logger.Noticef("skipping duplicate delta format %q in refresh.delta-formats", format)
+				continue
+			}
+			formats = append(formats, format)
 		}
-		return formats, nil
+		if len(formats) == 0 {
+			logger.Noticef("refresh.delta-formats contains no supported delta formats, using xdelta3")
+			return []string{"xdelta3"}
+		}
+		return formats
 	}
 
 	enabled := false
@@ -71,7 +88,25 @@ func RefreshDeltaFormats(tr deltaFormatConfig) ([]string, error) {
 			logger.Noticef("cannot determine ARM CPU suitability for snap deltas, using xdelta3: %v", err)
 		}
 	}
-	return squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: enabled}), nil
+	return squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: enabled})
+}
+
+// ValidateRefreshDeltaFormats checks that formats is a non-empty list of
+// supported delta formats without duplicates.
+func ValidateRefreshDeltaFormats(formats []string) error {
+	if len(formats) == 0 {
+		return fmt.Errorf("refresh.delta-formats must contain at least one delta format")
+	}
+	supported := squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true})
+	for i, format := range formats {
+		if !strutil.ListContains(supported, format) {
+			return fmt.Errorf("unsupported delta format %q in refresh.delta-formats", format)
+		}
+		if strutil.ListContains(formats[:i], format) {
+			return fmt.Errorf("duplicate delta format %q in refresh.delta-formats", format)
+		}
+	}
+	return nil
 }
 
 func armCPUAllowsSnapDelta() (bool, error) {
@@ -80,13 +115,27 @@ func armCPUAllowsSnapDelta() (bool, error) {
 		return false, err
 	}
 	found := false
-	hasProcessor, hasPart := false, false
+	hasProcessor, hasPart, hasImplementer := false, false, false
+	var part, implementer uint64
 	for _, line := range strings.Split(string(data)+"\n", "\n") {
 		if strings.TrimSpace(line) == "" {
-			if hasProcessor && !hasPart {
-				return false, fmt.Errorf("missing CPU part for a processor")
+			if hasProcessor || hasPart || hasImplementer {
+				if !hasPart {
+					return false, fmt.Errorf("missing CPU part for a processor")
+				}
+				if !hasImplementer {
+					return false, fmt.Errorf("missing CPU implementer for a processor")
+				}
+				// Cortex part IDs are scoped to Arm's implementer ID.
+				if implementer == 0x41 {
+					switch part {
+					case 0xc05, 0xc07, 0xc08, 0xd01, 0xd02, 0xd03, 0xd04, 0xd05, 0xd46, 0xd80, 0xd8f:
+						return false, nil
+					}
+				}
+				found = true
 			}
-			hasProcessor, hasPart = false, false
+			hasProcessor, hasPart, hasImplementer = false, false, false
 			continue
 		}
 		key, value, ok := strings.Cut(line, ":")
@@ -96,20 +145,23 @@ func armCPUAllowsSnapDelta() (bool, error) {
 		switch strings.ToLower(strings.TrimSpace(key)) {
 		case "processor":
 			hasProcessor = true
-		case "cpu part":
+		case "cpu part", "cpu implementer":
+			field, digits := "CPU part", 3
+			if strings.EqualFold(strings.TrimSpace(key), "cpu implementer") {
+				field, digits = "CPU implementer", 2
+			}
 			value = strings.TrimSpace(value)
-			if len(value) != 5 || !strings.EqualFold(value[:2], "0x") {
-				return false, fmt.Errorf("invalid CPU part %q", value)
+			if len(value) != digits+2 || !strings.EqualFold(value[:2], "0x") {
+				return false, fmt.Errorf("invalid %s %q", field, value)
 			}
-			part, err := strconv.ParseUint(value[2:], 16, 12)
+			id, err := strconv.ParseUint(value[2:], 16, digits*4)
 			if err != nil {
-				return false, fmt.Errorf("invalid CPU part %q: %w", value, err)
+				return false, fmt.Errorf("invalid %s %q: %w", field, value, err)
 			}
-			hasPart, found = true, true
-			// In-order Cortex A cores are unsuitable for streaming deltas.
-			switch part {
-			case 0xc05, 0xc07, 0xc08, 0xd01, 0xd03, 0xd04, 0xd05, 0xd46, 0xd80:
-				return false, nil
+			if field == "CPU part" {
+				part, hasPart = id, true
+			} else {
+				implementer, hasImplementer = id, true
 			}
 		}
 	}

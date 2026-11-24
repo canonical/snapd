@@ -50,7 +50,7 @@ type DeviceAndAuthContext interface {
 	StoreOffline() (bool, error)
 
 	// DeltaFormats returns the configured delta formats in preference order.
-	DeltaFormats() ([]string, error)
+	DeltaFormats() []string
 }
 
 // DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.

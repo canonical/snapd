@@ -27,7 +27,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -328,21 +327,23 @@ func (s *configcoreHijackSuite) TestConfigMngrInitHomeDirs(c *C) {
 }
 
 func (s *configcoreHijackSuite) TestConfigMngrInitDeltaFormats(c *C) {
-	originalArch := arch.DpkgArchitecture()
-	defer arch.SetArchitecture(arch.ArchitectureType(originalArch))
-	arch.SetArchitecture("armhf")
-
 	for _, tc := range []struct {
-		seeded  bool
-		flag    bool
-		formats []string
-		want    []string
+		seeded       bool
+		flag         any
+		formats      []string
+		migrated     bool
+		want         []string
+		wantMigrated bool
 	}{
 		{},
-		{seeded: true, want: []string{"xdelta3"}},
-		{seeded: true, flag: true, want: []string{"snap-1-1-xdelta3", "xdelta3"}},
+		{seeded: true},
+		{flag: true, want: []string{"snap-1-1-xdelta3", "xdelta3"}, wantMigrated: true},
+		{seeded: true, flag: false, want: []string{"xdelta3"}, wantMigrated: true},
 		{seeded: true, formats: []string{"snap-1-1-xdelta3"}, want: []string{"snap-1-1-xdelta3"}},
-		{seeded: true, flag: true, formats: []string{"xdelta3"}, want: []string{"snap-1-1-xdelta3", "xdelta3"}},
+		{seeded: true, flag: true, formats: []string{"xdelta3"}, want: []string{"xdelta3"}},
+		{flag: true, migrated: true, wantMigrated: true},
+		{flag: true, formats: []string{"future-format"}, want: []string{"future-format"}},
+		{flag: "invalid"},
 	} {
 		o := overlord.Mock()
 		st := o.State()
@@ -350,9 +351,12 @@ func (s *configcoreHijackSuite) TestConfigMngrInitDeltaFormats(c *C) {
 		c.Assert(err, IsNil)
 		st.Lock()
 		st.Set("seeded", tc.seeded)
+		if tc.migrated {
+			st.Set("refresh-delta-formats-migrated", true)
+		}
 		tr := config.NewTransaction(st)
-		if tc.flag {
-			c.Assert(tr.Set("core", "experimental.snap-delta-format", true), IsNil)
+		if tc.flag != nil {
+			c.Assert(tr.Set("core", "experimental.snap-delta-format", tc.flag), IsNil)
 		}
 		if tc.formats != nil {
 			c.Assert(tr.Set("core", "refresh.delta-formats", tc.formats), IsNil)
@@ -366,13 +370,26 @@ func (s *configcoreHijackSuite) TestConfigMngrInitDeltaFormats(c *C) {
 		err = config.NewTransaction(st).Get("core", "refresh.delta-formats", &formats)
 		if tc.want == nil {
 			c.Check(config.IsNoOption(err), Equals, true)
-			cfg, err := config.GetSnapConfig(st, "core")
-			c.Check(err, IsNil)
-			c.Check(cfg, IsNil)
+			if tc.flag == nil {
+				cfg, err := config.GetSnapConfig(st, "core")
+				c.Check(err, IsNil)
+				c.Check(cfg, IsNil)
+			}
 		} else {
 			c.Check(err, IsNil)
 			c.Check(formats, DeepEquals, tc.want)
 		}
+		var migrated bool
+		err = st.Get("refresh-delta-formats-migrated", &migrated)
+		if tc.wantMigrated {
+			c.Check(err, IsNil)
+			c.Check(migrated, Equals, true)
+		} else {
+			c.Check(err, testutil.ErrorIs, state.ErrNoState)
+		}
+		var flag any
+		c.Check(config.NewTransaction(st).GetMaybe("core", "experimental.snap-delta-format", &flag), IsNil)
+		c.Check(flag, DeepEquals, tc.flag)
 		st.Unlock()
 	}
 }
@@ -493,6 +510,48 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 
 	c.Check(chg.Err(), IsNil)
 	c.Check(configcoreRan, Equals, true)
+}
+
+func (s *configcoreHijackSuite) TestHijackMarksMigrationsComplete(c *C) {
+	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, configcore.RunTransaction) error {
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	for _, tc := range []struct {
+		option string
+		marker string
+		value  any
+	}{
+		{"refresh.delta-formats", "refresh-delta-formats-migrated", []string{"xdelta3"}},
+		{"disk-reservation.size", "disk-space-reservation-migrated", "5M"},
+	} {
+		for _, value := range []any{tc.value, nil} {
+			s.state.Set(tc.marker, nil)
+			ts := configstate.Configure(s.state, "core", map[string]any{tc.option: value}, 0)
+			chg := s.state.NewChange("configure-core", "configure core")
+			chg.AddAll(ts)
+
+			s.state.Unlock()
+			err := s.o.Settle(5 * time.Second)
+			s.state.Lock()
+			c.Assert(err, IsNil)
+			c.Assert(chg.Err(), IsNil)
+			var migrated bool
+			c.Assert(s.state.Get(tc.marker, &migrated), IsNil)
+			c.Check(migrated, Equals, true)
+			var stored any
+			err = config.NewTransaction(s.state).Get("core", tc.option, &stored)
+			if value == nil {
+				c.Check(config.IsNoOption(err), Equals, true)
+			} else {
+				c.Check(err, IsNil)
+				c.Check(stored, NotNil)
+			}
+		}
+	}
 }
 
 type miscSuite struct{}

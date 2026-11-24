@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -69,8 +70,7 @@ func (s *deltaFormatsSuite) TestRefreshDeltaFormatsDefaults(c *C) {
 		arch.SetArchitecture(arch.ArchitectureType(tc.arch))
 		for _, flag := range []any{nil, false, true} {
 			c.Assert(s.tr.Set("core", "experimental.snap-delta-format", flag), IsNil)
-			formats, err := snapstate.RefreshDeltaFormats(s.tr)
-			c.Assert(err, IsNil)
+			formats := snapstate.RefreshDeltaFormats(s.tr)
 			expected := []string{"xdelta3"}
 			if tc.enabled {
 				expected = []string{"snap-1-1-xdelta3", "xdelta3"}
@@ -88,10 +88,19 @@ func (s *deltaFormatsSuite) TestRefreshDeltaFormatsARM(c *C) {
 		allowed bool
 		log     string
 	}{
-		{"processor : 0\nCPU part : 0xd0b\n", true, ""},
-		{"processor : 0\nCPU Part : 0xD0B\n\nprocessor : 1\nCPU part : 0xd0c", true, ""},
-		{"processor : 0\nCPU part : 0xd0b\n\nprocessor : 1\nCPU part : 0xd03\n", false, ""},
-		{"processor : 0\nCPU part : 0xd0b\n \t\nprocessor : 1\n", false, "missing CPU part"},
+		{"processor : 0\nCPU implementer : 0x41\nCPU part : 0xd0b\n", true, ""},
+		{"processor : 0\nCPU Part : 0xD0B\nCPU Implementer : 0X41\n\nprocessor : 1\nCPU implementer : 0x41\nCPU part : 0xd0c", true, ""},
+		{"processor : 0\nCPU implementer : 0x41\nCPU part : 0xd0b\n\nprocessor : 1\nCPU part : 0xd03\nCPU implementer : 0x41\n", false, ""},
+		{"processor : 0\nCPU implementer : 0x41\nCPU part : 0xd0b\n \t\nprocessor : 1\n", false, "missing CPU part"},
+		{"processor : 0\nCPU part : 0xd01\nCPU implementer : 0x48\n", true, ""},
+		{"processor : 0\nCPU implementer : 0x48\nCPU part : 0xd01\n\nprocessor : 1\nCPU implementer : 0x41\nCPU part : 0xd01\n", false, ""},
+		{"processor : 0\nCPU implementer : 0x41\nCPU part : 0xd0b\n\nprocessor : 1\nCPU implementer : 0x48\nCPU part : 0xd01\n", true, ""},
+		{"processor : 0\nCPU part : 0xd0b\n", false, "missing CPU implementer"},
+		{"processor : 0\nCPU implementer : 0x41\nCPU part : 0xd0b\n\nprocessor : 1\nCPU part : 0xd0c\n", false, "missing CPU implementer"},
+		{"CPU implementer : 0x41\n\nCPU part : 0xd0b\n", false, "missing CPU part"},
+		{"CPU implementer : invalid\nCPU part : 0xd0b\n", false, "invalid CPU implementer"},
+		{"CPU implementer : 0x141\nCPU part : 0xd0b\n", false, "invalid CPU implementer"},
+		{"CPU implementer : 0xgg\nCPU part : 0xd0b\n", false, "invalid CPU implementer"},
 		{"processor : 0\nCPU part : invalid\n", false, "invalid CPU part"},
 		{"CPU part : 123\n", false, "invalid CPU part"},
 		{"CPU part : 0xzzz\n", false, "invalid CPU part"},
@@ -99,9 +108,8 @@ func (s *deltaFormatsSuite) TestRefreshDeltaFormatsARM(c *C) {
 	} {
 		c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "proc/cpuinfo"), []byte(tc.cpuinfo), 0644), IsNil)
 		log, restore := logger.MockLogger()
-		formats, err := snapstate.RefreshDeltaFormats(s.tr)
+		formats := snapstate.RefreshDeltaFormats(s.tr)
 		restore()
-		c.Assert(err, IsNil)
 		expected := []string{"xdelta3"}
 		if tc.allowed {
 			expected = []string{"snap-1-1-xdelta3", "xdelta3"}
@@ -111,11 +119,17 @@ func (s *deltaFormatsSuite) TestRefreshDeltaFormatsARM(c *C) {
 			c.Check(log.String(), testutil.Contains, tc.log)
 		}
 	}
-	for _, part := range []string{"0xc05", "0xc07", "0xc08", "0xd01", "0xd03", "0xd04", "0xd05", "0xd46", "0xd80"} {
-		c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "proc/cpuinfo"), []byte("CPU part : "+part), 0644), IsNil)
-		formats, err := snapstate.RefreshDeltaFormats(s.tr)
-		c.Assert(err, IsNil)
-		c.Check(formats, DeepEquals, []string{"xdelta3"}, Commentf("part=%s", part))
+	for _, part := range []string{"0xc05", "0xc07", "0xc08", "0xd01", "0xd02", "0xd03", "0xd04", "0xd05", "0xd46", "0xd80", "0xd8f"} {
+		for _, implementer := range []string{"0x41", "0x48"} {
+			cpuinfo := fmt.Sprintf("CPU implementer : %s\nCPU part : %s\n", implementer, part)
+			c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "proc/cpuinfo"), []byte(cpuinfo), 0644), IsNil)
+			formats := snapstate.RefreshDeltaFormats(s.tr)
+			expected := []string{"xdelta3"}
+			if implementer != "0x41" {
+				expected = []string{"snap-1-1-xdelta3", "xdelta3"}
+			}
+			c.Check(formats, DeepEquals, expected, Commentf("implementer=%s part=%s", implementer, part))
+		}
 	}
 }
 
@@ -123,38 +137,72 @@ func (s *deltaFormatsSuite) TestRefreshDeltaFormatsARMUnreadable(c *C) {
 	arch.SetArchitecture("arm64")
 	log, restore := logger.MockLogger()
 	defer restore()
-	formats, err := snapstate.RefreshDeltaFormats(s.tr)
-	c.Assert(err, IsNil)
+	formats := snapstate.RefreshDeltaFormats(s.tr)
 	c.Check(formats, DeepEquals, []string{"xdelta3"})
 	c.Check(log.String(), testutil.Contains, "cannot determine ARM CPU suitability")
 
 }
 
-func (s *deltaFormatsSuite) TestRefreshDeltaFormatsExplicitAndInvalid(c *C) {
-	arch.SetArchitecture("armhf")
+func (s *deltaFormatsSuite) TestValidateRefreshDeltaFormats(c *C) {
 	for _, tc := range []struct {
-		value any
-		want  []string
-		err   string
+		formats []string
+		err     string
 	}{
-		{[]string{"xdelta3"}, []string{"xdelta3"}, ""},
-		{[]string{"snap-1-1-xdelta3"}, []string{"snap-1-1-xdelta3"}, ""},
-		{[]string{"xdelta3", "snap-1-1-xdelta3"}, []string{"xdelta3", "snap-1-1-xdelta3"}, ""},
-		{[]string{}, nil, "refresh.delta-formats must contain at least one delta format"},
-		{[]string{"unknown"}, nil, `unsupported delta format "unknown" in refresh.delta-formats`},
-		{[]any{nil}, nil, `unsupported delta format "" in refresh.delta-formats`},
-		{[]any{"xdelta3", 1}, nil, ".*cannot unmarshal number.*"},
-		{"xdelta3", nil, ".*cannot unmarshal string.*"},
-		{true, nil, ".*cannot unmarshal bool.*"},
-		{map[string]string{"format": "xdelta3"}, nil, ".*cannot unmarshal object.*"},
+		{nil, "refresh.delta-formats must contain at least one delta format"},
+		{[]string{}, "refresh.delta-formats must contain at least one delta format"},
+		{[]string{"unknown"}, `unsupported delta format "unknown" in refresh.delta-formats`},
+		{[]string{"xdelta3", "xdelta3"}, `duplicate delta format "xdelta3" in refresh.delta-formats`},
+		{[]string{"xdelta3"}, ""},
+		{[]string{"xdelta3", "snap-1-1-xdelta3"}, ""},
 	} {
-		c.Assert(s.tr.Set("core", "refresh.delta-formats", tc.value), IsNil)
-		formats, err := snapstate.RefreshDeltaFormats(s.tr)
+		err := snapstate.ValidateRefreshDeltaFormats(tc.formats)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
-			c.Assert(err, IsNil)
-			c.Check(formats, DeepEquals, tc.want)
+			c.Check(err, IsNil)
 		}
 	}
+}
+
+func (s *deltaFormatsSuite) TestRefreshDeltaFormatsExplicitAndFallback(c *C) {
+	arch.SetArchitecture("amd64")
+	for _, tc := range []struct {
+		value any
+		want  []string
+		log   string
+	}{
+		{nil, []string{"snap-1-1-xdelta3", "xdelta3"}, ""},
+		{[]string{"xdelta3"}, []string{"xdelta3"}, ""},
+		{[]string{"snap-1-1-xdelta3"}, []string{"snap-1-1-xdelta3"}, ""},
+		{[]string{"xdelta3", "snap-1-1-xdelta3"}, []string{"xdelta3", "snap-1-1-xdelta3"}, ""},
+		{[]string{"xdelta3", "bogus", "snap-1-1-xdelta3"}, []string{"xdelta3", "snap-1-1-xdelta3"}, "skipping unsupported delta format bogus"},
+		{[]string{}, []string{"xdelta3"}, "contains no supported delta formats"},
+		{[]string{"unknown"}, []string{"xdelta3"}, "contains no supported delta formats"},
+		{[]any{nil}, []string{"xdelta3"}, "skipping unsupported delta format <nil>"},
+		{[]any{"xdelta3", 1}, []string{"xdelta3"}, "skipping unsupported delta format 1"},
+		{[]string{"xdelta3", "snap-1-1-xdelta3", "xdelta3"}, []string{"xdelta3", "snap-1-1-xdelta3"}, `skipping duplicate delta format "xdelta3"`},
+		{"xdelta3", []string{"xdelta3"}, "must be a list of delta formats"},
+		{true, []string{"xdelta3"}, "must be a list of delta formats"},
+		{map[string]string{"format": "xdelta3"}, []string{"xdelta3"}, "must be a list of delta formats"},
+	} {
+		c.Assert(s.tr.Set("core", "refresh.delta-formats", tc.value), IsNil)
+		log, restore := logger.MockLogger()
+		formats := snapstate.RefreshDeltaFormats(s.tr)
+		restore()
+		c.Check(formats, DeepEquals, tc.want)
+		if tc.log != "" {
+			c.Check(log.String(), testutil.Contains, tc.log)
+		} else {
+			c.Check(log.String(), Equals, "")
+		}
+	}
+}
+
+func (s *deltaFormatsSuite) TestRefreshDeltaFormatsUnreadable(c *C) {
+	arch.SetArchitecture("amd64")
+	c.Assert(s.tr.Set("core", "refresh", true), IsNil)
+	log, restore := logger.MockLogger()
+	defer restore()
+	c.Check(snapstate.RefreshDeltaFormats(s.tr), DeepEquals, []string{"xdelta3"})
+	c.Check(log.String(), testutil.Contains, "cannot read refresh.delta-formats, using xdelta3")
 }

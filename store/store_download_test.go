@@ -642,18 +642,68 @@ var downloadDeltaTests = []struct {
 	supportedFormats: []string{"xdelta3", "snap-1-1-xdelta3"},
 	expectedURL:      "xdelta3-delta-url",
 	expectError:      false,
+}, {
+	// A preferred format without its source must not hide a usable delta.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "unusable-delta-url", Format: "snap-1-1-xdelta3", FromRevision: 23, ToRevision: 26},
+			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	supportedFormats: []string{"snap-1-1-xdelta3", "xdelta3"},
+	expectedURL:      "xdelta3-delta-url",
+}, {
+	// Another delta of the same format can have an available source.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "unusable-delta-url", Format: "xdelta3", FromRevision: 23, ToRevision: 26},
+			{DownloadURL: "xdelta3-delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	supportedFormats: []string{"xdelta3"},
+	expectedURL:      "xdelta3-delta-url",
 }}
 
-func (s *storeDownloadSuite) TestDownloadDeltaFormatsError(c *C) {
-	dauthCtx := &testDauthContext{c: c, deltaFormatsErr: errors.New("cannot read delta formats")}
-	sto := store.New(nil, dauthCtx)
-	restore := store.MockDownload(func(context.Context, string, string, string, *auth.UserState, *store.Store, io.ReadWriteSeeker, int64, progress.Meter, *store.DownloadOptions) error {
-		c.Error("download must not run with invalid delta configuration")
-		return nil
-	})
-	defer restore()
-	err := sto.Download(s.ctx, "test-snap", filepath.Join(c.MkDir(), "test.snap"), &snap.DownloadInfo{}, nil, nil, nil)
-	c.Check(err, ErrorMatches, "cannot read delta formats")
+func (s *storeDownloadSuite) TestDownloadDeltaSourceUnavailable(c *C) {
+	for _, source := range []string{"missing", "different-revision", "directory"} {
+		name := "snap-" + source
+		sourcePath := filepath.Join(dirs.SnapBlobDir, name+"_24.snap")
+		c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+		switch source {
+		case "different-revision":
+			c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, name+"_23.snap"), nil, 0644), IsNil)
+		case "directory":
+			c.Assert(os.Mkdir(sourcePath, 0755), IsNil)
+		}
+
+		path := filepath.Join(c.MkDir(), "downloaded.snap")
+		var urls []string
+		restoreDownload := store.MockDownload(func(_ context.Context, _ string, _ string, url string, _ *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, _ int64, _ progress.Meter, _ *store.DownloadOptions) error {
+			urls = append(urls, url)
+			partials, err := filepath.Glob(path + ".*.partial")
+			c.Assert(err, IsNil)
+			c.Check(partials, HasLen, 0)
+			_, err = w.Write([]byte("full snap"))
+			return err
+		})
+		restoreApply := store.MockApplyDelta(func(context.Context, *store.Store, string, string, *snap.DeltaInfo, string, string) error {
+			c.Error("must not apply a delta without its source")
+			return errors.New("source unavailable")
+		})
+
+		err := s.store.Download(s.ctx, name, path, &snap.DownloadInfo{
+			DownloadURL: "full-snap-url",
+			Deltas: []snap.DeltaInfo{{
+				DownloadURL: "delta-url", Format: "xdelta3", FromRevision: 24, ToRevision: 26,
+			}},
+		}, nil, nil, nil)
+		restoreApply()
+		restoreDownload()
+
+		c.Assert(err, IsNil)
+		c.Check(urls, DeepEquals, []string{"full-snap-url"}, Commentf("source=%s", source))
+		c.Check(path, testutil.FileEquals, "full snap")
+	}
 }
 
 func (s *storeDownloadSuite) TestDownloadDelta(c *C) {

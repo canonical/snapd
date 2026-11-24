@@ -86,8 +86,6 @@ var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
 	},
 ))
 
-// For testing purposes
-
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -416,12 +414,12 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	return store
 }
 
-func (s *Store) supportedDeltaFormats() ([]string, error) {
+func (s *Store) supportedDeltaFormats() []string {
 	if s.dauthCtx != nil {
 		return s.dauthCtx.DeltaFormats()
 	}
 
-	return squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{}), nil
+	return squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{})
 }
 
 // SetAssertionMaxFormats allows to change the assertion max formats to send

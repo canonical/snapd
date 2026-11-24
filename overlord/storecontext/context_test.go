@@ -232,8 +232,7 @@ func (s *storeCtxSuite) TestDeltaFormats(c *C) {
 	arch.SetArchitecture("armhf")
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
-	formats, err := storeCtx.DeltaFormats()
-	c.Assert(err, IsNil)
+	formats := storeCtx.DeltaFormats()
 	c.Check(formats, DeepEquals, []string{"xdelta3"})
 	for _, want := range [][]string{{"snap-1-1-xdelta3"}, {"xdelta3", "snap-1-1-xdelta3"}, {"xdelta3"}} {
 		s.state.Lock()
@@ -244,18 +243,18 @@ func (s *storeCtxSuite) TestDeltaFormats(c *C) {
 		tr.Commit()
 		s.state.Unlock()
 
-		formats, err := storeCtx.DeltaFormats()
-		c.Assert(err, IsNil)
+		formats := storeCtx.DeltaFormats()
 		c.Check(formats, DeepEquals, want)
 	}
 
-	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "refresh.delta-formats", "invalid"), IsNil)
-	tr.Commit()
-	s.state.Unlock()
-	_, err = storeCtx.DeltaFormats()
-	c.Check(err, ErrorMatches, ".*cannot unmarshal string.*")
+	for _, invalid := range []any{"invalid", []string{"bogus"}} {
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "refresh.delta-formats", invalid), IsNil)
+		tr.Commit()
+		s.state.Unlock()
+		c.Check(storeCtx.DeltaFormats(), DeepEquals, []string{"xdelta3"})
+	}
 }
 
 func (s *storeCtxSuite) TestDeltaFormatsStoreRequests(c *C) {
@@ -317,11 +316,12 @@ func (s *storeCtxSuite) TestDeltaFormatsStoreRequests(c *C) {
 	c.Assert(tr.Set("core", "refresh.delta-formats", "invalid"), IsNil)
 	tr.Commit()
 	s.state.Unlock()
-	_, _, err = sto.SnapAction(context.Background(), nil, []*store.SnapAction{{
+	results, _, err := sto.SnapAction(context.Background(), nil, []*store.SnapAction{{
 		Action: "download", InstanceName: "test-snap",
 	}}, nil, nil, nil)
-	c.Check(err, ErrorMatches, ".*cannot unmarshal string.*")
-	c.Check(len(headers), Equals, 0)
+	c.Assert(err, IsNil)
+	c.Check(results, HasLen, 1)
+	c.Check(<-headers, Equals, "xdelta3")
 }
 
 func (s *storeCtxSuite) TestCloudInfo(c *C) {

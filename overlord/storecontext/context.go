@@ -264,7 +264,7 @@ func (sc *storeContext) StoreOffline() (bool, error) {
 	return offline, nil
 }
 
-func (sc *storeContext) DeltaFormats() ([]string, error) {
+func (sc *storeContext) DeltaFormats() []string {
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
