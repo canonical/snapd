@@ -743,7 +743,9 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 
 	// leave a marker that factory reset was performed
 	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
-	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
+	// with key data stored in LUKS2 tokens, no fallback key file was written
+	hasFallbackKeyFile := useEncryption && !boot.UseTokens(model)
+	if err := writeFactoryResetMarker(factoryResetMarker, hasFallbackKeyFile); err != nil {
 		return fmt.Errorf("cannot write the marker file: %v", err)
 	}
 	return nil
@@ -866,9 +868,9 @@ func fileDigest(p string) (string, error) {
 	return hex.EncodeToString(digest), nil
 }
 
-func writeFactoryResetMarker(marker string, hasEncryption bool) error {
+func writeFactoryResetMarker(marker string, hasFallbackKeyFile bool) error {
 	keyDigest := ""
-	if hasEncryption {
+	if hasFallbackKeyFile {
 		d, err := fileDigest(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 		if err != nil {
 			return err
@@ -883,7 +885,7 @@ func writeFactoryResetMarker(marker string, hasEncryption bool) error {
 		return err
 	}
 
-	if hasEncryption {
+	if hasFallbackKeyFile {
 		logger.Noticef("writing factory-reset marker at %v with key digest %q", marker, keyDigest)
 	} else {
 		logger.Noticef("writing factory-reset marker at %v", marker)
@@ -891,17 +893,22 @@ func writeFactoryResetMarker(marker string, hasEncryption bool) error {
 	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
 }
 
-func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
+// verifyFactoryResetMarkerInRun verifies the factory reset marker and
+// returns whether the reset left a fallback key file to rotate.
+func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) (bool, error) {
 	f, err := os.Open(marker)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer f.Close()
 	var frm factoryResetMarker
 	if err := json.NewDecoder(f).Decode(&frm); err != nil {
-		return err
+		return false, err
 	}
-	if hasEncryption {
+	// an encrypted system with an empty digest keeps its key data in
+	// LUKS2 tokens, there is no fallback key file to verify
+	hasFallbackKeyFile := hasEncryption && frm.FallbackSaveKeyHash != ""
+	if hasFallbackKeyFile {
 		saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 		d, err := fileDigest(saveFallbackKeyFactory)
 		if err != nil {
@@ -912,23 +919,23 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 			// digest
 			if !os.IsNotExist(err) {
 				// unless it's a different error
-				return err
+				return false, err
 			}
 			saveFallbackKeyFactory := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 			d, err = fileDigest(saveFallbackKeyFactory)
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
 		if d != frm.FallbackSaveKeyHash {
-			return fmt.Errorf("fallback sealed key digest mismatch, got %v expected %v", d, frm.FallbackSaveKeyHash)
+			return false, fmt.Errorf("fallback sealed key digest mismatch, got %v expected %v", d, frm.FallbackSaveKeyHash)
 		}
 	} else {
 		if frm.FallbackSaveKeyHash != "" {
-			return fmt.Errorf("unexpected non-empty fallback key digest")
+			return false, fmt.Errorf("unexpected non-empty fallback key digest")
 		}
 	}
-	return nil
+	return hasFallbackKeyFile, nil
 }
 
 type encryptionSetupDataKey struct {
@@ -1632,10 +1639,11 @@ func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedConta
 //   - Rotate ubuntu-save recovery key files: replace
 //     ubuntu-save.recovery.sealed-key with
 //     ubuntu-save.recovery.sealed-key.factory-reset which we have
-//     successfully used during factory reset.
+//     successfully used during factory reset, if the reset used key
+//     files (hasFallbackKeyFile).
 //   - Remove factory-reset-* keyslots.
 //   - Release TPM handles used by the removed keys.
-func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
+func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string, hasFallbackKeyFile bool) error {
 	protector, err := boot.HookKeyProtectorFactory(nil)
 	if err != nil {
 		logger.Noticef("WARNING: cannot determine whether FDE hooks are in use: %v", err)
@@ -1660,7 +1668,7 @@ func rotateSaveKeyAndDeleteOldKeys(saveMntPnt string) error {
 	// If the fallback save key exists, then it is the new
 	// key. That means the default save key is the old save key
 	// that needs to be removed.
-	if osutil.FileExists(saveFallbackKeyFactory) {
+	if hasFallbackKeyFile && osutil.FileExists(saveFallbackKeyFactory) {
 		oldKeys = append(oldKeys, defaultSaveKey)
 		renameKey = true
 	}

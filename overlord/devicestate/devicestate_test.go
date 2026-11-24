@@ -3760,6 +3760,76 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedTokens(c *C) {
+	defer release.MockOnClassic(false)
+
+	s.state.Lock()
+	devicestatetest.MarkInitialized(s.state)
+	s.state.Unlock()
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
+	defer restore()
+	devicestate.SetSystemMode(s.mgr, "run")
+	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
+
+	// encrypted system with key data in LUKS2 tokens, the marker has no
+	// key digest
+	mockSnapFDEFile(c, "marker", nil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}\n"), 0644), IsNil)
+	// a key file that was not verified is never rotated
+	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		[]byte("stray"), 0644), IsNil)
+
+	restore = devicestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		c.Check(mountpoint, Equals, boot.InitramfsUbuntuSaveDir)
+		return "FOOUUID", nil
+	})
+	defer restore()
+
+	removedOldHandles := 0
+	restore = devicestate.MockSecbootRemoveOldCounterHandles(func(node string, possibleOldKeys map[string]bool, possibleKeyFiles []string, hintExpectFDEHook bool) error {
+		removedOldHandles++
+		c.Check(node, Equals, "/dev/disk/by-uuid/FOOUUID")
+		c.Check(possibleOldKeys, DeepEquals, map[string]bool{
+			"reprovision-default-fallback": true,
+		})
+		c.Check(possibleKeyFiles, IsNil)
+		return nil
+	})
+	defer restore()
+
+	deleteOldSaveKey := 0
+	restore = devicestate.MockSecbootDeleteKeys(func(node string, matches map[string]bool) error {
+		c.Check(node, Equals, "/dev/disk/by-uuid/FOOUUID")
+		c.Check(matches, DeepEquals, map[string]bool{
+			"reprovision-default":          true,
+			"reprovision-default-fallback": true,
+		})
+		deleteOldSaveKey++
+		return nil
+	})
+	defer restore()
+
+	removeOldDiskKeys := 0
+	restore = devicestate.MockSecbootDeleteOldKeys(func(devicePath string) error {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/FOOUUID")
+		removeOldDiskKeys++
+		return nil
+	})
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(removedOldHandles, Equals, 1)
+	c.Check(deleteOldSaveKey, Equals, 1)
+	c.Check(removeOldDiskKeys, Equals, 1)
+	// factory reset marker is gone, the old keys were removed
+	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FileAbsent)
+	c.Check(filepath.Join(dirs.SnapFDEDir, "marker"), testutil.FilePresent)
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"), testutil.FileEquals, "stray")
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"), testutil.FileAbsent)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c *C) {
 	defer release.MockOnClassic(false)
 
