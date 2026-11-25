@@ -5,17 +5,51 @@ set -eu
 show_help() {
     cat <<'EOF'
 usage:
-    ubuntu-image [ensure|build|help]
+    ubuntu-image [ensure|build|toolchain|help]
 
 Ensure the ubuntu-image binary is available in the test environment and print the
 path to the binary. This mirrors the legacy helper logic previously provided by
 tests/lib/image.sh, but is exposed as a standalone tool for use from spread.yaml.
 
 Commands:
-    ensure      make sure ubuntu-image is available and print its path
-    build      build ubuntu-image from source
-    help       show this help
+    ensure              make sure ubuntu-image is available and print its path
+    build               build ubuntu-image from source
+    toolchain <dir>     print the Go toolchain name from <dir>/go.mod
+    help                show this help
 EOF
+}
+
+# Go 1.22 needs an exact toolchain name. A go.mod line of "go 1.25" otherwise
+# becomes a toolchain named go1.25, which is not a release.
+toolchain_name() {
+    local module_dir="$1"
+    local gomod="$module_dir/go.mod"
+    local toolchain gover
+
+    if [ ! -f "$gomod" ]; then
+        echo "ubuntu-image: cannot read go version from $gomod" >&2
+        return 1
+    fi
+
+    toolchain=$(awk '/^toolchain / { print $2; exit }' "$gomod")
+    if [ -n "$toolchain" ]; then
+        printf '%s\n' "$toolchain"
+        return 0
+    fi
+
+    gover=$(awk '/^go / { print $2; exit }' "$gomod")
+    case "$gover" in
+        *.*.*)
+            printf 'go%s\n' "$gover"
+            ;;
+        *.*)
+            printf 'go%s.0\n' "$gover"
+            ;;
+        *)
+            echo "ubuntu-image: cannot read go version from $gomod" >&2
+            return 1
+            ;;
+    esac
 }
 
 get_ubuntu_image() {
@@ -57,8 +91,9 @@ build_ubuntu_image() {
 
     git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
     (
-        # go 1.22 needs an exact toolchain name for automatic toolchain selection
-        export GOTOOLCHAIN=go1.25.0
+        # Go 1.22 needs an exact toolchain name. Read it from go.mod.
+        GOTOOLCHAIN="$(toolchain_name "$ubuntu_image_dir")"
+        export GOTOOLCHAIN
         cd "$ubuntu_image_dir" || exit 1
         go mod edit -replace="github.com/snapcore/snapd=$PROJECT_PATH"
         go build -mod=mod -tags withtestkeys -o "$GOHOME/bin/ubuntu-image" ./cmd/ubuntu-image
@@ -87,6 +122,14 @@ main() {
             ;;
         build)
             build_ubuntu_image
+            ;;
+        toolchain)
+            if [ $# -ne 2 ]; then
+                echo "ubuntu-image: toolchain requires a module directory" >&2
+                show_help >&2
+                exit 1
+            fi
+            toolchain_name "$2"
             ;;
         *)
             echo "ubuntu-image: unsupported command: $1" >&2

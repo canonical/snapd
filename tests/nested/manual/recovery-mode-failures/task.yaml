@@ -5,6 +5,15 @@ details: |
   which panics both return the device to run mode instead of repeatedly booting
   the failed recovery system.
 
+  bad_uki and initramfs_panic are the functional variants. Both use the suite's
+  prebuilt ubuntu-image. bad_uki covers a kernel that cannot be loaded, and
+  initramfs_panic covers an initramfs that panics.
+
+  The ubuntu_image_head variant builds ubuntu-image HEAD against this tree, so
+  the image embeds this snapd's recovery grub script, and then runs the bad_uki
+  reboot. The other variants keep the suite's prebuilt ubuntu-image. This
+  variant is a compatibility test and applies only on master.
+
 systems: [ubuntu-24.04-64, ubuntu-26.04-64]
 
 environment:
@@ -16,11 +25,16 @@ environment:
 
   FAILURE/bad_uki: bad-uki
   FAILURE/initramfs_panic: initramfs-panic
+  # Same reboot as bad_uki, after building ubuntu-image HEAD against this tree.
+  FAILURE/ubuntu_image_head: bad-uki
 
 skip:
   - reason: This test needs test keys to be trusted
     if: |
       [ "$TRUST_TEST_KEYS" = "false" ]
+  - reason: ubuntu-image HEAD calls SnapName().String()
+    if: |
+      [ "$SPREAD_VARIANT" = "ubuntu_image_head" ] && ! grep -q 'func (s \*Snap) SnapName() naming.SnapName' "$PROJECT_PATH/seed/seed.go"
 
 prepare: |
   # although nested_start_core_vm_unit usually installs this, the fake store
@@ -46,6 +60,25 @@ prepare: |
   cp validation-set.assert "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  if [ "$SPREAD_VARIANT" = "ubuntu_image_head" ]; then
+    # ubuntu-image embeds snapd boot assets. Build HEAD against this tree so
+    # the recovery reboot checks the grub script from this snapd, as an early
+    # compatibility check for future ubuntu-image snapd bumps.
+    ubuntu_image_dir="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image.XXXXXXXX")"
+    ubuntu_image_bin="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image-bin.XXXXXXXX")"
+    (
+      git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
+      # Go 1.22 needs an exact toolchain name. Read it from go.mod.
+      GOTOOLCHAIN="$("$TESTSTOOLS"/ubuntu-image toolchain "$ubuntu_image_dir")"
+      export GOTOOLCHAIN
+      cd "$ubuntu_image_dir"
+      go mod edit -replace="github.com/snapcore/snapd=$PROJECT_PATH"
+      go build -mod=mod -tags withtestkeys -o "$ubuntu_image_bin/ubuntu-image" ./cmd/ubuntu-image
+    )
+    # This prepare only. Leave the suite binary in $GOHOME/bin alone.
+    export PATH="$ubuntu_image_bin:$PATH"
+  fi
 
   tests.nested build-image core
   rm -rf "$(tests.nested get extra-snaps-path)"
