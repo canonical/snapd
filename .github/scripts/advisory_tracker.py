@@ -4,9 +4,11 @@
 
 Commands:
   resolve-mode  Print summary, dry-run, apply, or skip from the workflow event.
-  summary       Read-only overview. Markdown by default, or JSON with --format json.
+  summary       Read-only overview of tickets. Replaces the tracking table on
+                the parent issue. Markdown by default, or JSON with --format json.
   sync          Create missing triage and draft tickets and announce them.
-                --dry-run does not write.
+                --dry-run does not write. A real sync also replaces the
+                tracking table.
 
 A follow-up can continue after the petname is published on the advisory.
 This command stops once the ticket exists and that announcement is done.
@@ -61,6 +63,7 @@ JIRA_TIMEOUT_SECONDS = 60
 GITHUB_TIMEOUT_SECONDS = 60
 ADVISORY_LIMIT = 2000
 AUTOMATION_MARK = "advisory-tracker:"
+TRACKING_HEADING = "Tracking table"
 CHANNELS = ("mattermost",)
 BUG_LINK_FIELD_NAME = "Bug Link"
 BUG_LINK_FIELD_ENV = "JIRA_BUG_LINK_FIELD"
@@ -793,6 +796,142 @@ def adf_doc(paragraphs: list[str]) -> dict[str, Any]:
     return {"type": "doc", "version": 1, "content": content}
 
 
+def _adf_text(text: str) -> dict[str, Any]:
+    return {"type": "text", "text": text}
+
+
+def _adf_link(text: str, href: str) -> dict[str, Any]:
+    node = _adf_text(text)
+    node["marks"] = [{"type": "link", "attrs": {"href": href}}]
+    return node
+
+
+def _adf_paragraph(parts: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"type": "paragraph", "content": parts}
+
+
+def _adf_heading(text: str) -> dict[str, Any]:
+    return {
+        "type": "heading",
+        "attrs": {"level": 3},
+        "content": [_adf_text(text)],
+    }
+
+
+def _adf_table_cell(text: str, header: bool) -> dict[str, Any]:
+    shown = text if text != "" else "-"
+    return {
+        "type": "tableHeader" if header else "tableCell",
+        "content": [_adf_paragraph([_adf_text(shown)])],
+    }
+
+
+def _adf_table_row(values: list[str], header: bool = False) -> dict[str, Any]:
+    return {
+        "type": "tableRow",
+        "content": [_adf_table_cell(value, header) for value in values],
+    }
+
+
+def _updated_stamp(moment: datetime) -> str:
+    return moment.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def optional_run_url(env: Mapping[str, str]) -> str | None:
+    try:
+        return run_summary_url(env)
+    except TrackerError:
+        return None
+
+
+def _tracking_rows(report: Report) -> list[list[str]]:
+    rows = [["Advisory", "State", "Ticket", "Status", "Result"]]
+    for row in displayed_advisories(report, omit_settled=True):
+        if row.issue_keys:
+            tickets = ", ".join(row.issue_keys)
+        else:
+            tickets = row.issue_key or ""
+        rows.append(
+            [
+                _advisory_cell(row),
+                row.state,
+                tickets,
+                row.issue_status or "",
+                _result_cell(row),
+            ]
+        )
+    return rows
+
+
+def tracking_section(
+    report: Report, moment: datetime, run_url: str | None
+) -> list[dict[str, Any]]:
+    stamp = _updated_stamp(moment)
+    if run_url:
+        updated = _adf_paragraph(
+            [
+                _adf_text(f"Last updated {stamp}. "),
+                _adf_link("Actions run", run_url),
+            ]
+        )
+    else:
+        updated = _adf_paragraph([_adf_text(f"Last updated {stamp}.")])
+    table_rows = _tracking_rows(report)
+    if len(table_rows) == 1:
+        table_rows.append(["-", "-", "-", "-", "No open advisories"])
+    table = {
+        "type": "table",
+        "attrs": {"isNumberColumnEnabled": False, "layout": "default"},
+        "content": [
+            _adf_table_row(table_rows[0], header=True),
+            *[_adf_table_row(row) for row in table_rows[1:]],
+        ],
+    }
+    return [_adf_heading(TRACKING_HEADING), updated, table]
+
+
+def _is_tracking_start(node: Any) -> bool:
+    if not isinstance(node, dict) or node.get("type") != "heading":
+        return False
+    return adf_to_text(node).strip() == TRACKING_HEADING
+
+
+def description_with_tracking_table(
+    existing: Any, section: list[dict[str, Any]]
+) -> dict[str, Any]:
+    kept: list[Any] = []
+    if isinstance(existing, str) and existing.strip() != "":
+        kept.append(_adf_paragraph([_adf_text(existing.strip())]))
+    content = existing.get("content") if isinstance(existing, dict) else None
+    if isinstance(content, list):
+        for node in content:
+            if _is_tracking_start(node):
+                break
+            kept.append(node)
+    kept.extend(section)
+    return {"type": "doc", "version": 1, "content": kept}
+
+
+def publish_tracking_table(tracker: Tracker, report: Report) -> None:
+    try:
+        existing = tracker.description_of(tracker.config.parent_key)
+        tracker.set_description(
+            tracker.config.parent_key,
+            description_with_tracking_table(
+                existing,
+                tracking_section(
+                    report, tracker.now, optional_run_url(tracker.env)
+                ),
+            ),
+        )
+    except TrackerError as exc:
+        if exc.status == 404:
+            return
+        if exc.status in {401, 403}:
+            raise
+        report.errors.append(str(exc))
+
+
 def account_identity(value: Any) -> tuple[str | None, str | None]:
     if not isinstance(value, dict):
         return None, None
@@ -1213,6 +1352,22 @@ class Tracker:
             self.jira.edit_issue,
             key,
             data={"fields": {self.bug_link_field: url}},
+        )
+
+    def description_of(self, key: str) -> Any:
+        payload = _call_jira(self.jira.get_issue, key, fields="description")
+        if not isinstance(payload, dict):
+            raise TrackerError(f"cannot read Jira issue {key}")
+        fields = payload.get("fields")
+        if not isinstance(fields, dict):
+            raise TrackerError(f"cannot read Jira issue {key}")
+        return fields.get("description")
+
+    def set_description(self, key: str, document: Mapping[str, Any]) -> None:
+        _call_jira(
+            self.jira.edit_issue,
+            key,
+            data={"fields": {"description": dict(document)}},
         )
 
 
@@ -1638,12 +1793,21 @@ def execute(
         if report.confirmation_error not in report.errors:
             report.errors.append(report.confirmation_error)
     _finish_not_created(tracker, report, command, dry_run)
+    if command == "summary" or not dry_run:
+        publish_tracking_table(tracker, report)
     return report
 
 
 def _cell(value: Any) -> str:
     text = "" if value is None else str(value)
     return text.replace("|", "/").replace("\n", " ")
+
+
+def _result_cell(row: AdvisoryRow) -> str:
+    result = row.error or row.action
+    if row.notifications:
+        return f"{result}; {', '.join(row.notifications)}"
+    return result
 
 
 def settled_without_error(state: str, error: str | None) -> bool:
@@ -1686,14 +1850,27 @@ def _not_created_reason(report: Report, row: AdvisoryRow) -> str:
     return row.action
 
 
-def render_markdown(report: Report, omit_settled: bool = False) -> str:
-    lines = [
-        "# Advisory tracker",
-        "",
-        f"Parent: `{report.parent}`",
-        f"Mode: {report.mode}",
-        permission_line(report.permissions),
-    ]
+def render_markdown(
+    report: Report,
+    omit_settled: bool = False,
+    updated: datetime | None = None,
+    run_url: str | None = None,
+) -> str:
+    lines = ["# Advisory tracker", ""]
+    if updated is not None:
+        stamp = _updated_stamp(updated)
+        if run_url:
+            lines.append(f"Last updated {stamp}. [Actions run]({run_url})")
+        else:
+            lines.append(f"Last updated {stamp}.")
+        lines.append("")
+    lines.extend(
+        [
+            f"Parent: `{report.parent}`",
+            f"Mode: {report.mode}",
+            permission_line(report.permissions),
+        ]
+    )
     visible = displayed_advisories(report, omit_settled)
     if omit_settled:
         hidden = len(report.advisories) - len(visible)
@@ -1710,9 +1887,7 @@ def render_markdown(report: Report, omit_settled: bool = False) -> str:
         ]
     )
     for row in visible:
-        result = row.error or row.action
-        if row.notifications:
-            result = f"{result}; {', '.join(row.notifications)}"
+        result = _result_cell(row)
         lines.append(
             "| "
             + " | ".join(
@@ -1817,25 +1992,35 @@ def main(
             return 1
         return 0
     output_format = args.format if args.command == "summary" else "markdown"
+    moment = now or datetime.now(UTC)
     try:
         report = execute(
             load_config(args.config),
             environ,
             client or UrllibClient(),
-            now or datetime.now(UTC),
+            moment,
             args.command,
             args.dry_run,
         )
     except TrackerError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1
-    markdown = render_markdown(report, omit_settled=args.command == "summary")
+    run_url = optional_run_url(environ)
+    markdown = render_markdown(
+        report,
+        omit_settled=args.command == "summary",
+        updated=moment,
+        run_url=run_url,
+    )
     text = render_json(report) if output_format == "json" else markdown
     if output_format == "json":
         sys.stdout.write(text)
     else:
         sys.stdout.write(markdown)
-    write_step_summary(render_markdown(report, omit_settled=True), environ)
+    write_step_summary(
+        render_markdown(report, omit_settled=True, updated=moment, run_url=run_url),
+        environ,
+    )
     if args.output:
         with open(args.output, "w", encoding="utf-8") as handle:
             handle.write(text)

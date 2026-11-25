@@ -11,6 +11,10 @@ name: advisory tracker
 # only when apply is set, and only the writes those variables allow. dry-run
 # wins over apply and does not write.
 #
+# Summary, and sync when it is not a dry-run, replace the tracking table in
+# the parent issue description. Text above the table stays. The same table is
+# written to the Actions summary, with the time and a link to this run.
+#
 # contents: read lets checkout fetch these scripts. The track job also has
 # actions: write for the summary artifact. The token is not used to change
 # repository contents.
@@ -121,7 +125,7 @@ jobs:
           {
               echo "# Advisory tracker"
               echo
-              echo "Sync was skipped. A scheduled run skips when \`ADVISORY_TRACKER_CREATE\` and \`ADVISORY_TRACKER_NOTIFY\` are both unset. Set each repository variable to \`true\` to allow that write. Dispatch this workflow with action \`sync\` and \`apply\` set to write what those variables allow. Dispatch \`dry-run\` to report those writes. Dispatch \`summary\` for a read-only overview."
+              echo "Sync was skipped. A scheduled run skips when \`ADVISORY_TRACKER_CREATE\` and \`ADVISORY_TRACKER_NOTIFY\` are both unset. Set each repository variable to \`true\` to allow that write. Dispatch this workflow with action \`sync\` and \`apply\` set to write what those variables allow. Dispatch \`dry-run\` to report those writes. Dispatch \`summary\` to refresh the tracking table without creating tickets."
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Install API clients

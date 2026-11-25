@@ -188,6 +188,7 @@ class FakeClient(tracker.HttpClient):
         self.advisories = advisories
         self.extra_advisories = None
         self.catalog = catalog
+        self.parent_issue = None
         self.calls = []
         self.github_status = 200
         self.patch_status = 200
@@ -257,6 +258,8 @@ class FakeClient(tracker.HttpClient):
 
     def get_issue(self, issue_id_or_key, fields=None, **kwargs):
         del fields, kwargs
+        if self.parent_issue and self.parent_issue["key"] == issue_id_or_key:
+            return self.parent_issue
         for issue in self.catalog:
             if issue["key"] == issue_id_or_key:
                 return issue
@@ -328,6 +331,8 @@ class FakeClient(tracker.HttpClient):
             raise _jira_http_error(self.edit_status)
         fields = dict((data or {}).get("fields") or {})
         self.edits.append((issue_id_or_key, fields))
+        if self.parent_issue and self.parent_issue["key"] == issue_id_or_key:
+            self.parent_issue["fields"].update(fields)
         for issue in self.catalog:
             if issue["key"] == issue_id_or_key:
                 issue["fields"].update(fields)
@@ -929,6 +934,77 @@ class AdvisoryTrackerTests(unittest.TestCase):
             [row.ghsa_id for row in report.advisories], [EMBER, WILLOW]
         )
         self.assertEqual(report.advisories[1].action, "skipped")
+
+    def test_summary_appends_then_replaces_the_tracking_table(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT,
+            "snapd security advisories",
+            "To Do",
+            issue_type="Epic",
+            parent=None,
+        )
+        client.parent_issue["fields"]["description"] = {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This epic groups security advisories for snapd.",
+                        }
+                    ],
+                },
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Each child card tracks one advisory.",
+                        }
+                    ],
+                },
+            ],
+        }
+        run(client, command="summary")
+        description = client.parent_issue["fields"]["description"]
+        text = tracker.adf_to_text(description)
+        self.assertIn("This epic groups security advisories for snapd.", text)
+        self.assertIn("Each child card tracks one advisory.", text)
+        self.assertIn("Last updated 2026-11-12 15:00 UTC.", text)
+        self.assertIn(EMBER, text)
+        link = description["content"][3]["content"][1]["marks"][0]["attrs"]["href"]
+        self.assertEqual(link, RUN_LINK)
+        self.assertEqual(description["content"][4]["type"], "table")
+        run(client, command="summary")
+        again = client.parent_issue["fields"]["description"]["content"]
+        self.assertEqual(
+            tracker.adf_to_text(again[0]),
+            "This epic groups security advisories for snapd.",
+        )
+        self.assertEqual(
+            tracker.adf_to_text(again[1]),
+            "Each child card tracks one advisory.",
+        )
+        headings = [node for node in again if node.get("type") == "heading"]
+        self.assertEqual(len(headings), 1)
+        self.assertEqual(len([node for node in again if node.get("type") == "table"]), 1)
+
+    def test_dry_run_leaves_the_parent_description(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        run(client, dry_run=True)
+        self.assertEqual(client.parent_issue["fields"]["description"], original)
+        self.assertFalse(
+            any("description" in fields for _key, fields in client.edits)
+        )
 
     def test_summary_is_read_only(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
