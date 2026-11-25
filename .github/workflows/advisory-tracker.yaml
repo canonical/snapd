@@ -43,12 +43,6 @@ on:
   # Payload fields: action (summary or sync), apply, and dry_run.
   repository_dispatch:
     types: [advisory-tracker]
-  pull_request:
-    paths:
-      - .github/workflows/advisory-tracker.yaml
-      - .github/scripts/advisory_tracker.py
-      - .github/scripts/test_advisory_tracker.py
-      - .github/advisory-tracker.yaml
 
 concurrency:
   group: advisory-tracker
@@ -73,7 +67,7 @@ jobs:
 
   track:
     needs: test
-    if: github.event_name != 'pull_request' && github.repository == 'canonical/snapd-security-release'
+    if: github.repository == 'canonical/snapd-security-release'
     permissions:
       contents: read
       actions: write
