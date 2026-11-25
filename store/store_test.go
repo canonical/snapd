@@ -234,6 +234,8 @@ type testDauthContext struct {
 	c      *C
 	device *auth.DeviceState
 
+	deltaFormats []string
+
 	deviceMu         sync.Mutex
 	deviceGetWitness func()
 
@@ -320,8 +322,11 @@ func (dac *testDauthContext) StoreOffline() (bool, error) {
 	return dac.storeOffline, nil
 }
 
-func (sc *testDauthContext) WithSnapStoreDelta() bool {
-	return true
+func (sc *testDauthContext) DeltaFormats() []string {
+	if sc.deltaFormats != nil {
+		return sc.deltaFormats
+	}
+	return []string{"snap-1-1-xdelta3", "xdelta3"}
 }
 
 func (dac *testDauthContext) CloudInfo() (*auth.CloudInfo, error) {

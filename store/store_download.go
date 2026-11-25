@@ -174,7 +174,8 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Cache entry for SHA3_384 …%.5s has unexpected size, re-downloading.", downloadInfo.Sha3_384)
 	}
 
-	if len(s.supportedDeltaFormats()) > 0 {
+	deltaFormats := s.supportedDeltaFormats()
+	if len(deltaFormats) > 0 {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 		if len(downloadInfo.Deltas) > 0 {
 			err := s.downloadAndApplyDelta(ctx, name, targetPath, downloadInfo, pbar, user, dlOpts)
@@ -835,18 +836,32 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 	return s.doRequest(ctx, cli, reqOptions, user)
 }
 
-// selectDelta selects the preferred delta format amongst the options in downloadInfo.
-func (s *Store) selectDelta(downloadInfo *snap.DownloadInfo) (*snap.DeltaInfo, error) {
+// selectDelta selects the preferred supported delta with a locally available
+// source revision amongst the options in downloadInfo.
+func (s *Store) selectDelta(name string, downloadInfo *snap.DownloadInfo) (*snap.DeltaInfo, error) {
 	var deltaInfo snap.DeltaInfo
 	deltaFormats := s.supportedDeltaFormats()
 	idx := len(deltaFormats)
 	for _, info := range downloadInfo.Deltas {
 		// Priority is determined by the order returned by
-		// squashfsSupportedDeltaFormats(): lower index is higher priority. So
+		// supportedDeltaFormats(): lower index is higher priority. So
 		// once we find one at position idx, we do not want to look to higher
 		// indexes in the strings returned by the store.
 		for i := 0; i < idx; i++ {
 			if deltaFormats[i] == info.Format {
+				sourcePath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%d.snap", name, info.FromRevision))
+				source, err := os.Stat(sourcePath)
+				if os.IsNotExist(err) {
+					logger.Debugf("Skipping delta for %q: source revision %d is not available", name, info.FromRevision)
+					break
+				}
+				if err != nil {
+					return nil, fmt.Errorf("cannot inspect delta source %q: %w", sourcePath, err)
+				}
+				if !source.Mode().IsRegular() {
+					logger.Noticef("Skipping delta for %q: source %q is not a regular file", name, sourcePath)
+					break
+				}
 				deltaInfo = info
 				idx = i
 				break
@@ -855,7 +870,7 @@ func (s *Store) selectDelta(downloadInfo *snap.DownloadInfo) (*snap.DeltaInfo, e
 	}
 
 	if idx == len(deltaFormats) {
-		return nil, fmt.Errorf("store does not support any of our snap delta formats")
+		return nil, fmt.Errorf("no supported delta for %q has an available source revision", name)
 	}
 	return &deltaInfo, nil
 }
@@ -877,9 +892,8 @@ func (s *Store) applyDeltaImpl(ctx context.Context, name string, deltaPath strin
 
 	partialTargetPath := targetPath + ".partial"
 
-	// validity check that deltas are available and that the path for the xdelta3
-	// command is set
-	if ok := len(s.supportedDeltaFormats()) > 0; !ok {
+	deltaFormats := s.supportedDeltaFormats()
+	if len(deltaFormats) == 0 {
 		return fmt.Errorf("internal error: applyDelta used when deltas are not available")
 	}
 
@@ -916,7 +930,7 @@ func (s *Store) applyDeltaImpl(ctx context.Context, name string, deltaPath strin
 
 // downloadAndApplyDelta downloads and then applies the delta to the current snap.
 func (s *Store) downloadAndApplyDelta(ctx context.Context, name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
-	deltaInfo, err := s.selectDelta(downloadInfo)
+	deltaInfo, err := s.selectDelta(name, downloadInfo)
 	if err != nil {
 		return err
 	}

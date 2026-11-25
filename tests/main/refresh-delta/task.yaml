@@ -14,16 +14,16 @@ prepare: |
     snap install --edge "$SNAP_NAME_SNAP_DELTA"
 
 restore: |
-     sudo snap unset system experimental.snap-delta-format
+    snap unset system refresh.delta-formats experimental.snap-delta-format
 
 execute: |
     echo "Refresh, xdelta3"
+    snap set system refresh.delta-formats='["xdelta3"]'
     snap refresh --beta "$SNAP_NAME_XDELTA3"
     "$TESTSTOOLS"/journal-state match-log "Successfully applied delta"
 
     "$TESTSTOOLS"/journal-state start-new-log
-    # snap xdelta3 is experimental at the moment
-     sudo snap set system experimental.snap-delta-format=true
+    snap set system refresh.delta-formats='["snap-1-1-xdelta3","xdelta3"]'
 
     echo "Refresh, snap-delta"
     snap refresh --beta "$SNAP_NAME_SNAP_DELTA"

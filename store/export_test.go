@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -200,14 +199,6 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	httputilNewHTTPClient = f
 	return func() {
 		httputilNewHTTPClient = old
-	}
-}
-
-func MockSupportedDeltaFormats(f func(squashfs.DeltaFormatOpts) []string) (restore func()) {
-	old := squashfsSupportedDeltaFormats
-	squashfsSupportedDeltaFormats = f
-	return func() {
-		squashfsSupportedDeltaFormats = old
 	}
 }
 
