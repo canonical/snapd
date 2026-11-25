@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/confdbstate"
@@ -172,7 +173,7 @@ func (s *confdbHandlerSuite) TestValidateMismatchedAuthority(c *C) {
 
 	var authErr *devicemgmthandlers.UnauthorizedError
 	c.Assert(errors.As(err, &authErr), Equals, true)
-	c.Check(authErr.Operator, Equals, "alice")
+	c.Check(authErr, ErrorMatches, `cannot perform action: operator "alice" is not authorized`)
 }
 
 func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
@@ -195,7 +196,7 @@ func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
 
 	var authErr *devicemgmthandlers.UnauthorizedError
 	c.Assert(errors.As(err, &authErr), Equals, true)
-	c.Check(authErr.Operator, Equals, "alice")
+	c.Check(authErr, ErrorMatches, `cannot perform action: operator "alice" is not authorized`)
 }
 
 func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
@@ -219,7 +220,7 @@ func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
 
 	var authErr *devicemgmthandlers.UnauthorizedError
 	c.Assert(errors.As(err, &authErr), Equals, true)
-	c.Check(authErr.Operator, Equals, "alice")
+	c.Check(authErr, ErrorMatches, `cannot perform action: operator "alice" is not authorized`)
 }
 
 func (s *confdbHandlerSuite) TestValidateInvalidBody(c *C) {
@@ -435,6 +436,10 @@ func (s *confdbHandlerSuite) TestApplyGetViewError(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "cannot find view .* in confdb schema .*")
 	c.Check(chgID, Equals, "")
+
+	var handlerErr *devicemgmthandlers.Error
+	c.Assert(errors.As(err, &handlerErr), Equals, true)
+	c.Check(handlerErr.Kind, Equals, client.ErrorKindOptionNotAvailable)
 }
 
 func (s *confdbHandlerSuite) TestApplyWriteConfdbError(c *C) {
@@ -461,6 +466,9 @@ func (s *confdbHandlerSuite) TestApplyWriteConfdbError(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "cannot write confdb")
 	c.Check(chgID, Equals, "")
+
+	var handlerErr *devicemgmthandlers.Error
+	c.Check(errors.As(err, &handlerErr), Equals, false)
 }
 
 func (s *confdbHandlerSuite) TestResultFromChangeOK(c *C) {
@@ -510,12 +518,13 @@ func (s *confdbHandlerSuite) TestResultFromChangeInvalid(c *C) {
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	tests := []struct {
-		name        string
-		chgKind     string
-		chgStatus   state.Status
-		addTasks    func(st *state.State, chg *state.Change)
-		apiData     any
-		expectedErr string
+		name         string
+		chgKind      string
+		chgStatus    state.Status
+		addTasks     func(st *state.State, chg *state.Change)
+		apiData      any
+		expectedErr  string
+		expectedKind client.ErrorKind
 	}{
 		{
 			name:        "no api-data on get change",
@@ -529,6 +538,16 @@ func (s *confdbHandlerSuite) TestResultFromChangeInvalid(c *C) {
 			chgStatus: state.DoneStatus,
 			apiData: map[string]any{"error": map[string]any{
 				"kind":    "option-not-found",
+				"message": "not found",
+			}},
+			expectedErr:  "not found",
+			expectedKind: client.ErrorKindConfigNoSuchOption,
+		},
+		{
+			name:      "confdb error in api-data without a kind",
+			chgKind:   "get-confdb",
+			chgStatus: state.DoneStatus,
+			apiData: map[string]any{"error": map[string]any{
 				"message": "not found",
 			}},
 			expectedErr: "not found",
@@ -574,5 +593,14 @@ func (s *confdbHandlerSuite) TestResultFromChangeInvalid(c *C) {
 		c.Assert(err, NotNil, cmt)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 		c.Check(body, IsNil, cmt)
+
+		var handlerErr *devicemgmthandlers.Error
+		if tt.expectedKind == "" {
+			c.Check(errors.As(err, &handlerErr), Equals, false, cmt)
+			continue
+		}
+
+		c.Assert(errors.As(err, &handlerErr), Equals, true, cmt)
+		c.Check(handlerErr.Kind, Equals, tt.expectedKind, cmt)
 	}
 }

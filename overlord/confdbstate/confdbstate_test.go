@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -217,6 +217,35 @@ func parsePath(c *C, path string) []confdb.Accessor {
 	accs, err := confdb.ParsePathIntoAccessors(path, opts)
 	c.Assert(err, IsNil)
 	return accs
+}
+
+func (s *confdbTestSuite) TestErrorKind(c *C) {
+	view := s.dbSchema.View("setup-wifi")
+
+	tests := []struct {
+		name string
+		err  error
+		kind client.ErrorKind
+	}{
+		{
+			name: "no assertion",
+			err: &asserts.NotFoundError{
+				Type:    asserts.ConfdbSchemaType,
+				Headers: map[string]string{"account-id": s.devAccID, "name": "network"},
+			},
+			kind: client.ErrorKindAssertionNotFound,
+		},
+		{name: "no view", err: &confdbstate.NoViewError{}, kind: client.ErrorKindOptionNotAvailable},
+		{name: "no match", err: confdb.NewNoMatchError(view, "", nil), kind: client.ErrorKindOptionNotAvailable},
+		{name: "no data", err: confdb.NewNoDataError(view, nil), kind: client.ErrorKindConfigNoSuchOption},
+		{name: "wrapped", err: fmt.Errorf("cannot read: %w", confdb.NewNoDataError(view, nil)), kind: client.ErrorKindConfigNoSuchOption},
+		{name: "unmapped", err: fmt.Errorf("cannot read confdb")},
+		{name: "nil"},
+	}
+
+	for _, tt := range tests {
+		c.Check(confdbstate.ErrorKind(tt.err), Equals, tt.kind, Commentf("%s test", tt.name))
+	}
 }
 
 func (s *confdbTestSuite) TestGetView(c *C) {

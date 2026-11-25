@@ -81,6 +81,21 @@ func setViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) 
 	return nil
 }
 
+// ErrorKind returns the error kind that describes err, or the empty kind if
+// there is none.
+func ErrorKind(err error) client.ErrorKind {
+	switch {
+	case errors.Is(err, &asserts.NotFoundError{}):
+		return client.ErrorKindAssertionNotFound
+	case errors.Is(err, &NoViewError{}), errors.Is(err, &confdb.NoMatchError{}):
+		return client.ErrorKindOptionNotAvailable
+	case errors.Is(err, &confdb.NoDataError{}):
+		return client.ErrorKindConfigNoSuchOption
+	}
+
+	return ""
+}
+
 type NoViewError struct {
 	view       string
 	account    string
