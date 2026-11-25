@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import contextlib
+import io
 import json
 import os
 import sys
@@ -756,7 +758,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         client = FakeClient([advisory], [anchor()])
         client.mattermost_status = 403
         report = run(client)
-        self.assertIn("HTTP 403", report.errors[-1])
+        self.assertTrue(any("HTTP 403" in error for error in report.errors))
         self.assertIn(EMBER, tracker.render_markdown(report))
 
     def test_jira_create_auth_failure_aborts_before_the_notice(self):
@@ -1108,6 +1110,70 @@ class AdvisoryTrackerTests(unittest.TestCase):
             ),
             "dry-run",
         )
+        self.assertEqual(
+            tracker.resolve_mode(
+                {
+                    "GITHUB_EVENT_NAME": "workflow_dispatch",
+                    "INPUT_ACTION": "summary",
+                    "INPUT_DRY_RUN": "true",
+                }
+            ),
+            "summary-dry-run",
+        )
+        self.assertEqual(
+            tracker.resolve_mode(
+                {
+                    "GITHUB_EVENT_NAME": "repository_dispatch",
+                    "PAYLOAD_ACTION": "summary",
+                    "PAYLOAD_DRY_RUN": "true",
+                }
+            ),
+            "summary-dry-run",
+        )
+        self.assertEqual(
+            tracker.resolve_mode(
+                {
+                    "GITHUB_EVENT_NAME": "workflow_dispatch",
+                    "INPUT_ACTION": "summary",
+                }
+            ),
+            "summary",
+        )
+
+    def test_summary_dry_run_leaves_the_parent_description(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        run(client, command="summary", dry_run=True)
+        self.assertEqual(client.parent_issue["fields"]["description"], original)
+        self.assertFalse(
+            any("description" in fields for _key, fields in client.edits)
+        )
+
+    def test_summary_parent_404_fails_the_run(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        report = run(client, command="summary")
+        self.assertTrue(any("HTTP 404" in error for error in report.errors))
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(tracker, "connect_github", return_value=client),
+            patch.object(tracker, "connect_jira", return_value=client),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            code = tracker.main(
+                ["summary", "--config", CONFIG_PATH],
+                env=environment(),
+                client=client,
+                now=NOW,
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("HTTP 404", stderr.getvalue())
 
     def test_create_without_a_key_is_an_error_and_notifies(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")

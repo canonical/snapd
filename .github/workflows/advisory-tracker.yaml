@@ -11,8 +11,9 @@ name: advisory tracker
 # only when apply is set, and only the writes those variables allow. dry-run
 # wins over apply and does not write.
 #
-# Summary, and sync when it is not a dry-run, replace the tracking table in
-# the parent issue description. Text above the table stays. The same table is
+# A summary replaces the tracking table in the parent issue description.
+# A summary with dry-run reports that table and does not write it. Sync
+# dry-run does not write. Text above the table stays. The same table is
 # written to the Actions summary, with the time and a link to this run.
 #
 # contents: read lets checkout fetch these scripts. The track job also has
@@ -129,30 +130,35 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Install API clients
-        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
+        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'summary-dry-run' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
         run: python3 -m pip install --user 'atlassian-python-api==5.0.5' 'PyGithub==2.10.0'
 
       - name: Install petname
-        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
+        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'summary-dry-run' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y petname
 
       - name: Summarize advisories
-        if: steps.mode.outputs.mode == 'summary'
+        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'summary-dry-run'
         env:
           SNAPD_ADVISORY_GITHUB_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
           JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_BUG_LINK_FIELD: ${{ vars.JIRA_BUG_LINK_FIELD }}
           MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}
           ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
           ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
         run: |
           set -euo pipefail
-          python3 .github/scripts/advisory_tracker.py summary --format markdown --output advisory-tracker-summary.md
+          dry_run=()
+          if [ "${{ steps.mode.outputs.mode }}" = "summary-dry-run" ]; then
+              dry_run+=(--dry-run)
+          fi
+          python3 .github/scripts/advisory_tracker.py summary "${dry_run[@]}" --format markdown --output advisory-tracker-summary.md
 
       - name: Dry-run sync
         if: steps.mode.outputs.mode == 'dry-run'
@@ -162,6 +168,7 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
           JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_BUG_LINK_FIELD: ${{ vars.JIRA_BUG_LINK_FIELD }}
           MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}
           ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
           ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
@@ -177,6 +184,7 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
           JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_BUG_LINK_FIELD: ${{ vars.JIRA_BUG_LINK_FIELD }}
           MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}
           ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
           ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
@@ -185,7 +193,7 @@ jobs:
           python3 .github/scripts/advisory_tracker.py sync
 
       - name: Upload summary
-        if: steps.mode.outputs.mode == 'summary'
+        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'summary-dry-run'
         uses: actions/upload-artifact@v7
         with:
           name: advisory-tracker-summary

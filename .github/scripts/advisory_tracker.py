@@ -3,9 +3,10 @@
 """Create snapd GitHub security advisories as SNAPDENG Jira tickets.
 
 Commands:
-  resolve-mode  Print summary, dry-run, apply, or skip from the workflow event.
-  summary       Read-only overview of tickets. Replaces the tracking table on
-                the parent issue. Markdown by default, or JSON with --format json.
+  resolve-mode  Print summary, summary-dry-run, dry-run, apply, or skip.
+  summary       Overview of tickets. Replaces the tracking table on the parent
+                issue. --dry-run reports the table and does not write it.
+                Markdown by default, or JSON with --format json.
   sync          Create missing triage and draft tickets and announce them.
                 --dry-run does not write. A real sync also replaces the
                 tracking table.
@@ -725,7 +726,7 @@ def resolve_mode(env: Mapping[str, str]) -> str:
     if action not in {"summary", "sync"}:
         raise TrackerError(f"cannot resolve mode: unsupported action {action}")
     if action == "summary":
-        return "summary"
+        return "summary-dry-run" if dry_run else "summary"
     if dry_run:
         return "dry-run"
     if apply:
@@ -925,8 +926,6 @@ def publish_tracking_table(tracker: Tracker, report: Report) -> None:
             ),
         )
     except TrackerError as exc:
-        if exc.status == 404:
-            return
         if exc.status in {401, 403}:
             raise
         report.errors.append(str(exc))
@@ -1793,7 +1792,7 @@ def execute(
         if report.confirmation_error not in report.errors:
             report.errors.append(report.confirmation_error)
     _finish_not_created(tracker, report, command, dry_run)
-    if command == "summary" or not dry_run:
+    if not dry_run:
         publish_tracking_table(tracker, report)
     return report
 
@@ -2033,7 +2032,9 @@ def main(
     for error in report.errors:
         print(f"::error::{error}", file=sys.stderr)
     if args.command == "summary":
-        return 1 if any(row.error for row in report.advisories) else 0
+        if report.errors or any(row.error for row in report.advisories):
+            return 1
+        return 0
     if report.confirmation_error:
         return 2
     if report.errors or any(row.error for row in report.advisories):
