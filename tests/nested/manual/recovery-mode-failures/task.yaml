@@ -65,8 +65,11 @@ prepare: |
     # ubuntu-image embeds snapd boot assets. Build HEAD against this tree so
     # the recovery reboot checks the grub script from this snapd, as an early
     # compatibility check for future ubuntu-image snapd bumps.
-    ubuntu_image_dir="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image.XXXXXXXX")"
-    ubuntu_image_bin="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image-bin.XXXXXXXX")"
+    assets="$(tests.nested get assets-path)"
+    ubuntu_image_dir="$assets/ubuntu-image"
+    ubuntu_image_bin="$assets/ubuntu-image-bin"
+    rm -rf "$ubuntu_image_dir" "$ubuntu_image_bin"
+    mkdir -p "$ubuntu_image_dir" "$ubuntu_image_bin"
     (
       git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
       # Go 1.22 needs an exact toolchain name. Read it from go.mod.
