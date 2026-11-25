@@ -1,0 +1,43 @@
+summary: Migrate the experimental snap delta flag to refresh delta formats
+
+details: |
+  Verify that the legacy experimental snap delta flag is migrated to the
+  refresh.delta-formats system option while preserved for rollback, both when
+  set at runtime and across a snapd restart. Verify that explicit sets and
+  unsets persist without being overridden by the legacy flag.
+
+environment:
+  FLAG/true: "true"
+  FLAG/false: "false"
+  FORMATS/true: '["snap-1-1-xdelta3","xdelta3"]'
+  FORMATS/false: '["xdelta3"]'
+
+restore: |
+  snap unset system refresh.delta-formats experimental.snap-delta-format
+
+execute: |
+  echo "Set the legacy experimental snap delta flag"
+  snap set system experimental.snap-delta-format="$FLAG"
+  test "$(snap get -d system refresh.delta-formats | gojq -c '."refresh.delta-formats"')" = "$FORMATS"
+  test "$(snap get system experimental.snap-delta-format)" = "$FLAG"
+
+  echo "Verify the migration and legacy flag persist across restart"
+  systemctl restart snapd.service
+  snap version
+  test "$(snap get -d system refresh.delta-formats | gojq -c '."refresh.delta-formats"')" = "$FORMATS"
+  test "$(snap get system experimental.snap-delta-format)" = "$FLAG"
+
+  echo "Verify an explicit unset persists while the legacy flag remains set"
+  snap unset system refresh.delta-formats
+  not snap get system refresh.delta-formats
+  systemctl restart snapd.service
+  snap version
+  not snap get system refresh.delta-formats
+  test "$(snap get system experimental.snap-delta-format)" = "$FLAG"
+
+  echo "Verify an explicit list wins over the legacy flag across restart"
+  snap set system refresh.delta-formats='["xdelta3"]'
+  systemctl restart snapd.service
+  snap version
+  test "$(snap get -d system refresh.delta-formats | gojq -c '."refresh.delta-formats"')" = '["xdelta3"]'
+  test "$(snap get system experimental.snap-delta-format)" = "$FLAG"
