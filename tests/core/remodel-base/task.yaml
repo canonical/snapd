@@ -134,13 +134,15 @@ execute: |
     fi
 
     if [ ! -e remodel1-done ]; then
+        # absorb any pending gadget reboot first: snapd closes its API socket
+        # while waiting for one, so call it before the snap commands below
+        wait_change_done "Refresh model assertion from revision 0 to 2"
         echo "and we have the new base snap installed"
         snap list "$NEW_BASE"
         echo "And are using it"
         "$TESTSTOOLS"/boot-state wait-core-post-boot
         MATCH "snap_core=$NEW_BASE" < /boot/grub/grubenv
         echo "and we got the new model assertion"
-        wait_change_done "Refresh model assertion from revision 0 to 2"
         snap debug model|MATCH "revision: 2"
         echo "and we cannot remove the base snap"
         not snap remove --purge "$NEW_BASE"
