@@ -28,8 +28,6 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/dbusutil"
 )
 
 // DBusTest provides a separate dbus session bus for running tests
@@ -89,7 +87,13 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")
 	os.Setenv("DBUS_SESSION_BUS_ADDRESS", scanner.Text())
 
-	s.SessionBus, err = dbusutil.SessionBusPrivate()
+	// The session bus address was just set above, so connect to it
+	// directly, to avoid a dependency on dbusutil.
+	s.SessionBus, err = dbus.SessionBusPrivate()
+	c.Assert(err, IsNil)
+	err = s.SessionBus.Auth(nil)
+	c.Assert(err, IsNil)
+	err = s.SessionBus.Hello()
 	c.Assert(err, IsNil)
 }
 
