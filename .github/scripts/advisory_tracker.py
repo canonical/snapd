@@ -208,7 +208,7 @@ class Report:
 def default_config_path() -> str:
     return os.path.normpath(
         os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "..", "advisory-tracker.yaml"
+            os.path.dirname(os.path.abspath(__file__)), "..", "advisory-tracker_config.yaml"
         )
     )
 

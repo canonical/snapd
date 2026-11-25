@@ -11,7 +11,7 @@ from unittest.mock import patch
 import advisory_tracker as tracker
 
 CONFIG_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "advisory-tracker.yaml")
+    os.path.join(os.path.dirname(__file__), "..", "advisory-tracker_config.yaml")
 )
 NOW = datetime(2026, 11, 12, 15, 0, tzinfo=UTC)
 NOW_STAMP = "2026-11-12T15:00:00.000+0000"
