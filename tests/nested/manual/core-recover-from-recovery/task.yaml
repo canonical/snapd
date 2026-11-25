@@ -78,6 +78,10 @@ execute: |
 
     remote.exec "sudo snap wait system seed.loaded"
     remote.wait-for device-initialized
+
+    api_get_v2_system_info_storage_encrypted >install-state.json
+    gojq -r '.result.status' <install-state.json | MATCH "^active$"
+
     # Reboot as we are installing from initramfs, so no unlock was necessary yet
     boot_id=$(tests.nested boot-id)
     remote.exec sudo reboot || true
@@ -89,7 +93,7 @@ execute: |
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-run.json)" = run
 
     api_get_v2_system_info_storage_encrypted >initial-state.json
-    gojq -r '.result.status' <initial-state.json | MATCH active
+    gojq -r '.result.status' <initial-state.json | MATCH "^active$"
 
     wait_for_auto_repair_state initial-state.json not-attempted
 
@@ -173,6 +177,6 @@ execute: |
     test "$(gojq -r '."ubuntu-save"."unlock-key"' <unlocked-post-recovery.json)" = run
 
     api_get_v2_system_info_storage_encrypted >post-repair-state.json
-    gojq -r '.result.status' <post-repair-state.json | MATCH active
+    gojq -r '.result.status' <post-repair-state.json | MATCH "^active$"
 
     wait_for_auto_repair_state post-repair-state.json not-attempted
