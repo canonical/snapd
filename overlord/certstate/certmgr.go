@@ -90,15 +90,14 @@ func (m *CertManager) ensureGarbageCollectionRun() error {
 	return garbageCollectCertificateGenerations(bootID)
 }
 
-// removeOldCertificateDatabase removes the old-style merged certificate path
-// when it is a plain directory (from before generations were published), so the
-// store can be regenerated. It is a no-op when merged is already a symlink to a
-// published generation.
-func (m *CertManager) removeOldCertificateDatabase() error {
+// removeLegacyCertificateDatabase removes the legacy merged certificate path
+// if the merged path is not a symlink.
+func (m *CertManager) removeLegacyCertificateDatabase() error {
 	mergedDir := CurrentCertificateDir()
 	if osutil.IsSymlink(mergedDir) {
 		return nil
 	}
+	// the legacy setup used plain directories instead of symlinks
 	return os.RemoveAll(mergedDir)
 }
 
@@ -138,14 +137,12 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	// The reason we set it already, before any of the checks have actually run, is
-	// that in the case of errors we don't want to keep trying the below things. They are
-	// meant to run just once per boot (of snapd is fine too).
+	// At this point make sure we dont run again
 	m.oneTimeChecksRan = true
 
 	// If the merged certificate path is a plain directory (the old layout from
 	// before generations were published), remove it so it can be regenerated.
-	if err := m.removeOldCertificateDatabase(); err != nil {
+	if err := m.removeLegacyCertificateDatabase(); err != nil {
 		// In case of weird errors in this case, log it and skip generation. If it was
 		// a weird FS error, then we'll just retry again on next snapd startup.
 		logger.Noticef("error checking merged certificate database: %v", err)
@@ -176,21 +173,7 @@ func (m *CertManager) Ensure() error {
 	//
 	// TODO: The database will be generated with the lock being held here, which is not
 	// the best, as there is some overhead in file-generation and hashing.
-	previousTarget, err := resolveCurrentCertificateTarget()
-	if err != nil {
-		return err
-	}
-	if err := RefreshCertificateDatabase(); err != nil {
-		return err
-	}
-	currentTarget, err := resolveCurrentCertificateTarget()
-	if err != nil {
-		return err
-	}
-	if currentTarget != previousTarget {
-		logger.Noticef("reconciled managed CA certificate store (generation %s)", currentTarget)
-	}
-	return nil
+	return RefreshCertificateDatabase()
 }
 
 // recordCurrentCertificateGeneration is a helper function to make sure
@@ -238,7 +221,7 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 	// previous target is empty and undo removes merged, leaving no store until
 	// the next Ensure reconciles it again.
 	st.Lock()
-	err := m.removeOldCertificateDatabase()
+	err := m.removeLegacyCertificateDatabase()
 	st.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot remove old certificate database: %v", err)
@@ -249,8 +232,7 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 	// generation to roll back to.
 	// The function will do it's own lock/unlock to force a commit to the underlying
 	// state to disk.
-	_, err = recordCurrentCertificateGeneration(t, previousGenerationTaskKey)
-	if err != nil {
+	if _, err := recordCurrentCertificateGeneration(t, previousGenerationTaskKey); err != nil {
 		return err
 	}
 
