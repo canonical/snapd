@@ -13,7 +13,12 @@ skip:
     - reason: Requires Go 1.21 or newer as log/slog package is used
       if: |
         go_version="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
-        ! tests.info is-snapd-from-archive && [ "$USE_PREBUILT_PACKAGES" != "true" ] && ( [ -z "$go_version" ] || [ "$(printf '%s\n' "$go_version" "1.21" | sort -V | head -n1)" != "1.21" ] )
+        ! tests.info is-snapd-from-archive &&
+            [ "$USE_PREBUILT_PACKAGES" != "true" ] &&
+            {
+                [ -z "$go_version" ] ||
+                [ "$(printf '%s\n' "$go_version" "1.21" | sort -V | head -n1 )" != "1.21" ];
+            }
 
 prepare: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
