@@ -65,15 +65,31 @@ void sc_verify_snap_lock(const char *snap_name);
 /**
  * Obtain a flock-based, exclusive, snap-scoped, lock.
  *
- * The actual lock is placed in "/run/snapd/ns/$SNAP_NAME.$UID.lock"
+ * The actual lock is placed in "/run/snapd/lock/$SNAP_NAME.$UID.lock"
  * It should be acquired only when holding the snap-specific lock.
  *
- * If the lock cannot be acquired for three seconds (via
+ * If the lock cannot be acquired for SANITY_TIMEOUT seconds (via
  * sc_enable_sanity_timeout) then the function fails and the process dies.
  * The return value needs to be passed to sc_unlock(), there is no need to
  * check for errors as the function will die() on any problem.
  **/
 int sc_lock_snap_user(const char *snap_name, uid_t uid);
+
+/**
+ * Obtain a flock-based, exclusive, per-security-tag, device cgroup lock.
+ *
+ * The actual lock is placed in "/run/snapd/lock/$SECURITY_TAG.devcgroup.lock".
+ * The lock synchronizes access to the device cgroup v2 BPF map between
+ * snap-confine and snap-device-helper, which may otherwise race and
+ * overwrite each other's device rules.
+ *
+ * If the lock cannot be acquired for SANITY_TIMEOUT seconds (via
+ * sc_enable_sanity_timeout) then the function fails and the process dies.
+ * There is no need to check for errors as the function will die() on any
+ * problem. Closing the returned fd drops the associated flock, so the
+ * device cgroup code releases it with sc_cleanup_close().
+ **/
+int sc_lock_devcgroup(const char *security_tag);
 
 /**
  * Release a flock-based lock.

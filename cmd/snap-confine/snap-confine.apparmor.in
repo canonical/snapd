@@ -223,6 +223,9 @@ profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     /var/lib/snapd/pki/v1/published/*/ r,
     mount options=(rw bind) /var/lib/snapd/pki/v1/published/*/ -> /tmp/snap-private-tmp/snap.rootfs_*/etc/ssl/certs/,
     mount options=(remount ro bind) -> /tmp/snap-private-tmp/snap.rootfs_*/etc/ssl/certs/,
+    # the managed CA bind mount is made slave so later mounts on top (e.g. a
+    # layout) cannot propagate back onto the host's published generation
+    mount options=(rw slave) -> /tmp/snap-private-tmp/snap.rootfs_*/etc/ssl/certs/,
 
     # unidirectional mounts (only for classic system)
     mount options=(rw rbind) /dev/ -> /tmp/snap-private-tmp/snap.rootfs_*/dev/,

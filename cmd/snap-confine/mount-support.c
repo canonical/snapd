@@ -137,6 +137,10 @@ static char *sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
     // make sure we remount r/o
     sc_do_mount(managed, target_certs_dir, NULL, MS_BIND, NULL);
     sc_do_mount(NULL, target_certs_dir, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
+    // Detach from the inherited peer group so a later mount on /etc/ssl/certs
+    // (e.g. a layout) does not propagate back onto the shared published
+    // generation on the host.
+    sc_do_mount("none", target_certs_dir, NULL, MS_SLAVE, NULL);
 
     const char *generation = strrchr(managed, '/');
     return sc_strdup(generation + 1);

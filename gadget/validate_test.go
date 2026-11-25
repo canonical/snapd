@@ -92,7 +92,6 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureReservedLabels(c *C) 
 func (s *validateGadgetTestSuite) TestRuleValidateStructureEmmcNames(c *C) {
 	for _, tc := range []struct {
 		name, err string
-		model     gadget.Model
 	}{
 		{name: "some-name", err: `cannot use "some-name" as emmc name, only \["boot0" "boot1"\] is allowed`},
 		{name: "boot0", err: ""},
@@ -109,7 +108,35 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureEmmcNames(c *C) {
 			},
 		}
 		gadget.SetEnclosingVolumeInStructs(gi.Volumes)
-		err := gadget.Validate(gi, tc.model, nil)
+		err := gadget.Validate(gi, nil, nil)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, ".*: "+tc.err)
+		}
+	}
+}
+
+func (s *validateGadgetTestSuite) TestRuleValidateStructureUFSNames(c *C) {
+	for _, tc := range []struct {
+		name, err string
+	}{
+		{name: "some-name", err: `cannot use "some-name" as ufs name, only \["boot-lu-a" "boot-lu-b"\] is allowed`},
+		{name: "boot-lu-a", err: ""},
+		{name: "boot-lu-b", err: ""},
+	} {
+		gi := &gadget.Info{
+			Volumes: map[string]*gadget.Volume{
+				"ufs": {
+					Schema: "ufs",
+					Structure: []gadget.VolumeStructure{{
+						Name: tc.name,
+					}},
+				},
+			},
+		}
+		gadget.SetEnclosingVolumeInStructs(gi.Volumes)
+		err := gadget.Validate(gi, nil, nil)
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
