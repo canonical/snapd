@@ -27,12 +27,15 @@ import (
 
 	"github.com/godbus/dbus/v5"
 
-	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/strutil"
 )
+
+// systemBus is the function used to connect to the system bus; it is
+// a variable so that tests can mock it.
+var systemBus = dbus.SystemBus
 
 type XKBConfig struct {
 	Model    string
@@ -103,7 +106,7 @@ func (c *XKBConfig) KernelCommandLineFragment() string {
 }
 
 func CurrentXKBConfig() (*XKBConfig, error) {
-	conn, err := dbusutil.SystemBus()
+	conn, err := systemBus()
 	if err != nil {
 		return nil, err
 	}

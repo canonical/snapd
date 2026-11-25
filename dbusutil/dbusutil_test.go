@@ -29,9 +29,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/testutil/dbustest"
 )
 
 func Test(t *testing.T) { TestingT(t) }
