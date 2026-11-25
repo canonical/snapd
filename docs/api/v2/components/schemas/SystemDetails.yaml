@@ -95,7 +95,11 @@ properties:
           must be populated if `availability-check-errors` is non-empty.
       availability-check-errors:
         type: array
-        description: A list of errors detected during the pre-install check, as determined by the secboot library.
+        description: >-
+          A list of errors detected during the pre-install or post-install
+          check, as determined by the secboot library. The error kinds that
+          can occur during a post-install check are a subset of those that
+          can occur during a pre-install check.
         items:
           type: object
           title: PreinstallErrorDetails
