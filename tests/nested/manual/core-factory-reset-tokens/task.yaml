@@ -1,0 +1,66 @@
+summary: Verify factory reset of an encrypted system with key data in LUKS2 tokens
+
+details: |
+    Check that an encrypted Ubuntu Core system that keeps its key data in
+    LUKS2 tokens can be reset to factory state twice in a row. After each
+    reset, no key renamed by the reset is left in the LUKS2 header of
+    ubuntu-save, and the ubuntu-save fallback key has new key data.
+
+systems: [ubuntu-24.04-64]
+
+environment:
+    NESTED_ENABLE_TPM: "true"
+    NESTED_ENABLE_SECURE_BOOT: "true"
+    NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=1
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+debug: |
+    if [ -e save.json ]; then
+      cat save.json
+    fi
+
+execute: |
+    # check that no key renamed by a factory reset is left on ubuntu-save, and
+    # print the key data of its fallback key
+    save_fallback_key() {
+      remote.exec "sudo cryptsetup luksDump --dump-json-metadata /dev/disk/by-label/ubuntu-save-enc" > save.json
+      test "$(gojq '[.tokens[] | select((.ubuntu_fde_name // "") | startswith("reprovision-"))] | length' save.json)" = 0
+      test "$(gojq '[.tokens[] | select(.ubuntu_fde_name == "default-fallback")] | length' save.json)" = 1
+      test "$(gojq '.tokens[] | select(.ubuntu_fde_name == "default-fallback") | .type == "ubuntu-fde" and (.ubuntu_fde_data | type == "object" and length > 0)' save.json)" = true
+      gojq -c '.tokens[] | select(.ubuntu_fde_name == "default-fallback") | .ubuntu_fde_data' save.json
+    }
+
+    factory_reset() {
+      local boot_id
+      boot_id="$(tests.nested boot-id)"
+      # add || true in case the SSH connection is broken while executing this
+      # since this command causes an immediate reboot
+      remote.exec "sudo snap reboot --factory-reset" || true
+      remote.wait-for reboot "${boot_id}"
+      remote.exec sudo cat /var/lib/snapd/modeenv | MATCH '^mode=run$'
+      remote.wait-for snap-command
+      retry -n 60 --wait 2 remote.exec "sudo snap wait system seed.loaded"
+      # the keys renamed by the reset are removed before the marker
+      retry -n 60 --wait 2 remote.exec test ! -e /var/lib/snapd/device/factory-reset
+    }
+
+    echo "Wait for the system to be seeded first"
+    remote.exec "sudo snap wait system seed.loaded"
+    remote.wait-for device-initialized
+
+    echo "Check that the key data is in LUKS2 tokens"
+    remote.exec cat /proc/cmdline | MATCH '(^| )ubuntu-core\.force-experimental-tokens=1( |$)'
+    save_fallback_key > initial-key
+
+    echo "Reset the system to factory state"
+    factory_reset
+    save_fallback_key > first-reset-key
+    not cmp initial-key first-reset-key
+
+    echo "Reset the system to factory state again"
+    factory_reset
+    save_fallback_key > second-reset-key
+    not cmp first-reset-key second-reset-key
