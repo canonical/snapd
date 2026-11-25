@@ -59,11 +59,17 @@ var noopTask = func(*state.Task, *tomb.Tomb) error { return nil }
 type mockStore struct {
 	storetest.Store
 
-	assertionDB      *asserts.Database
+	assertionDB *asserts.Database
+	assertion   func(assertType *asserts.AssertionType, key []string) (asserts.Assertion, error)
+
 	exchangeMessages func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
 func (s *mockStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	if s.assertion != nil {
+		return s.assertion(assertType, key)
+	}
+
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	return ref.Resolve(s.assertionDB.Find)
 }
@@ -113,15 +119,6 @@ func (h *mockMessageHandler) ResultFromChange(ctx context.Context, chg *state.Ch
 	}
 
 	return nil, nil
-}
-
-// failingBackstore fails every Get with an error that is not a NotFoundError.
-type failingBackstore struct {
-	asserts.Backstore
-}
-
-func (failingBackstore) Get(*asserts.AssertionType, []string, int) (asserts.Assertion, error) {
-	return nil, fmt.Errorf("db broken")
 }
 
 func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
@@ -254,11 +251,13 @@ func (s *deviceMgmtMgrSuite) makeSerial(c *C, serial string) *asserts.Serial {
 	return as.(*asserts.Serial)
 }
 
-func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) {
-	snapstate.ReplaceStore(s.st, &mockStore{
+func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) *mockStore {
+	sto := &mockStore{
 		assertionDB:      s.storeStack.Database,
 		exchangeMessages: exchangeMessages,
-	})
+	}
+	snapstate.ReplaceStore(s.st, sto)
+	return sto
 }
 
 func (s *deviceMgmtMgrSuite) makeStoreRequestMessage(c *C, accountID, messageID, kind, token string) store.MessageWithToken {
@@ -1442,12 +1441,12 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadRawAssertion(c *C) {
 }
 
 // validateWithoutAccountKey runs a message through validation with the signing
-// key missing from bs and the store fetch failing with fetchErr.
-func (s *deviceMgmtMgrSuite) validateWithoutAccountKey(c *C, bs asserts.Backstore, fetchErr error) (int, *handlers.RequestMessage) {
+// key missing from the DB and the store fetch failing with fetchErr.
+func (s *deviceMgmtMgrSuite) validateWithoutAccountKey(c *C, fetchErr error) (int, *handlers.RequestMessage) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+	sto := s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return &store.MessageExchangeResponse{
 			Messages: []store.MessageWithToken{
 				s.makeStoreRequestMessage(c, "operator", "msg1", "test-kind", "token-1"),
@@ -1455,19 +1454,19 @@ func (s *deviceMgmtMgrSuite) validateWithoutAccountKey(c *C, bs asserts.Backstor
 		}, nil
 	})
 
-	// Back the DB with bs, which has no account key, so ensureAccountKey cannot find it locally.
+	// Remove the account key from the local DB so ensureAccountKey reaches the fetch.
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: bs,
+		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.storeStack.Trusted,
 	})
 	c.Assert(err, IsNil)
 	assertstate.ReplaceDB(s.st, db)
 
 	fetchCalls := 0
-	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
+	sto.assertion = func(*asserts.AssertionType, []string) (asserts.Assertion, error) {
 		fetchCalls++
-		return fetchErr
-	}))
+		return nil, fetchErr
+	}
 	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryDelay(time.Millisecond))
 	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryAttempts(10))
 
@@ -1481,21 +1480,17 @@ func (s *deviceMgmtMgrSuite) validateWithoutAccountKey(c *C, bs asserts.Backstor
 	return fetchCalls, ms.Sequences["operator/msg1"].Messages[0]
 }
 
-func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyTransientErrorRetries(c *C) {
-	fetchCalls, msg := s.validateWithoutAccountKey(c, asserts.NewMemoryBackstore(), &store.UnexpectedHTTPStatusError{
-		OpSummary:  "fetch assertion",
-		StatusCode: 503,
-		Method:     "GET",
-	})
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyTooManyRequestsRetries(c *C) {
+	fetchCalls, msg := s.validateWithoutAccountKey(c, store.ErrTooManyRequests)
 
 	// Ten retries plus the final attempt.
 	c.Check(fetchCalls, Equals, 11)
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
-	c.Check(msg.ResponseBody["message"], testutil.Contains, "cannot fetch signing key: cannot fetch assertion: got unexpected HTTP status code 503")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot fetch signing key: too many requests")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyPermanentErrorNotRetried(c *C) {
-	fetchCalls, msg := s.validateWithoutAccountKey(c, asserts.NewMemoryBackstore(), &store.UnexpectedHTTPStatusError{
+	fetchCalls, msg := s.validateWithoutAccountKey(c, &store.UnexpectedHTTPStatusError{
 		OpSummary:  "fetch assertion",
 		StatusCode: 400,
 		Method:     "GET",
@@ -1504,15 +1499,6 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyPermanentErrorN
 	c.Check(fetchCalls, Equals, 1)
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
 	c.Check(msg.ResponseBody["message"], testutil.Contains, "cannot fetch signing key: cannot fetch assertion: got unexpected HTTP status code 400")
-}
-
-func (s *deviceMgmtMgrSuite) TestDoValidateMessageAccountKeyLookupError(c *C) {
-	bs := failingBackstore{asserts.NewMemoryBackstore()}
-	fetchCalls, msg := s.validateWithoutAccountKey(c, bs, fmt.Errorf("fetch must not be called"))
-
-	c.Check(fetchCalls, Equals, 0)
-	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
-	c.Check(msg.ResponseBody["message"], Equals, "cannot look up signing key: db broken")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadSignature(c *C) {

@@ -33,7 +33,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -453,16 +452,6 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 	return m.isRemoteDeviceManagementEnabled() || len(ms.ReadyResponses) > 0
 }
 
-// isTransientStoreError reports whether a store fetch error should be retried.
-func isTransientStoreError(err error) bool {
-	if httputil.ShouldRetryError(err) || errors.Is(err, store.ErrTooManyRequests) {
-		return true
-	}
-
-	var statusErr *store.UnexpectedHTTPStatusError
-	return errors.As(err, &statusErr) && statusErr.StatusCode >= 500
-}
-
 // maybeRetryTask increments and persists an attempt counter on task t,
 // returning Retry until taskMaxRetryAttempts is exceeded, then nil.
 func maybeRetryTask(t *state.Task, key string) error {
@@ -766,12 +755,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		}
 	}
 	if fetchErr != nil {
-		if !fetched {
-			setMsgResponse(asserts.MessageStatusError, fmt.Sprintf("cannot look up signing key: %v", fetchErr))
-			return nil
-		}
-
-		if isTransientStoreError(fetchErr) {
+		if errors.Is(fetchErr, store.ErrTooManyRequests) {
 			retryErr := maybeRetryTask(t, "account-key-fetch-attempts")
 			if retryErr != nil {
 				return retryErr
