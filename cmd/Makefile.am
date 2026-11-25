@@ -204,6 +204,11 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/test-utils-test.c \
 	libsnap-confine-private/utils-test.c
 
+if ENABLE_BPF
+libsnap_confine_private_unit_tests_SOURCES += \
+	libsnap-confine-private/device-cgroup-support-v2-test.c
+endif
+
 libsnap_confine_private_unit_tests_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS) $(SANITIZE_CFLAGS)
 libsnap_confine_private_unit_tests_LDFLAGS = $(SANITIZE_LDFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS) libsnap-confine-private-test-support.a
