@@ -121,7 +121,7 @@ setup_snapd_pkgproxy() {
     } > /etc/systemd/system/snapd.service.d/pkgproxy.conf
 
     # Restart snapd to apply it, where snapd is installed.
-    systemctl daemon-reload 
+    systemctl daemon-reload
     systemctl restart snapd
 }
 
