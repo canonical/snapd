@@ -12,6 +12,11 @@ description: >-
   that context, so multiple actions can be performed in sequence. Another GET request
   to the same system (`GET /v2/systems/{label}`) replaces this context and resets the
   action sequence. The context is also lost if snapd restarts or the system reboots.
+
+  When this action is performed on `POST /v2/systems` (no label, applying to the
+  currently running system), the preceding GET request is `GET
+  /v2/systems?running=true` instead, and the check it runs, and the one run after
+  applying the fix, are post-install checks rather than pre-install ones.
 required:
   - action
   - fix-action
