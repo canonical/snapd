@@ -856,10 +856,8 @@ def _adf_cell_content(cell: TableCell) -> list[dict[str, Any]]:
             if index:
                 parts.append(_adf_hard_break())
             parts.extend(_adf_inline_nodes(line))
-    paragraph: dict[str, Any] = _adf_paragraph(parts)
-    if cell.align == "center":
-        paragraph["attrs"] = {"textAlign": "center"}
-    return [paragraph]
+    # Jira rejects paragraph attrs.textAlign with INVALID_INPUT.
+    return [_adf_paragraph(parts)]
 
 
 def _adf_table_cell_model(cell: TableCell) -> dict[str, Any]:
@@ -1741,9 +1739,9 @@ def _announce_created(
             row.notifications.append("notify disabled")
         return
     message = created_message(row, issue_key, tracker.env)
-    for channel in tracker.config.notify["created"]:
+    for _channel in tracker.config.notify["created"]:
         if not writes.advisory_tracker_notify:
-            row.notifications.append(f"would {channel} created")
+            row.notifications.append("would notify")
             continue
         try:
             _post_mattermost(tracker, message)
@@ -1755,7 +1753,7 @@ def _announce_created(
             if message_error not in report.errors:
                 report.errors.append(message_error)
             continue
-        row.notifications.append(f"sent {channel} created")
+        row.notifications.append("notified")
 
 
 def _publish_codename(
@@ -1812,10 +1810,10 @@ def _finish_not_created(
         return
     row = rows[0]
     if not tracker.permissions.advisory_tracker_notify:
-        row.notifications.append("notify disabled not_created")
+        row.notifications.append("notify disabled not created")
         return
     if dry_run:
-        row.notifications.append("would mattermost not_created")
+        row.notifications.append("would notify not created")
         return
     try:
         _post_mattermost(tracker, not_created_message(tracker.env))
@@ -1827,7 +1825,7 @@ def _finish_not_created(
         else:
             row.error = message
         return
-    row.notifications.append("sent mattermost not_created")
+    row.notifications.append("notified not created")
 
 
 def _create_missing(
@@ -1854,11 +1852,11 @@ def _create_missing(
         return None
     if not writes.advisory_tracker_create:
         row.action = (
-            "would_create"
+            "would create"
             if tracker.permissions.advisory_tracker_create
-            else "create_disabled"
+            else "create disabled"
         )
-        if row.action == "would_create":
+        if row.action == "would create":
             _announce_created(tracker, report, row, "new", writes)
         return None
     if row.codename is None:
@@ -2087,7 +2085,6 @@ def render_markdown(
     lines = [
         "# Advisory tracker",
         "",
-        f"Parent: `{report.parent}`",
         permission_line(report.permissions),
     ]
     visible = ranked_advisories(report, omit_settled)
@@ -2126,21 +2123,27 @@ def render_markdown(
     return "\n".join(lines)
 
 
-def render_json(report: Report) -> str:
+def render_json(report: Report, updated: datetime | None = None) -> str:
     payload = asdict(report)
-    ranked = ranked_advisories(report, omit_settled=report.mode == "summary")
-    if report.mode == "summary":
+    payload.pop("mode", None)
+    omit_settled = report.mode == "summary"
+    ranked = ranked_advisories(report, omit_settled=omit_settled)
+    if omit_settled:
         payload["omitted_advisories"] = len(report.advisories) - len(ranked)
-    advisories = [asdict(row) for row in ranked]
-    for row in advisories:
+    advisories = []
+    for item in ranked:
+        row = asdict(item)
         row.pop("summary", None)
         row.pop("cve_id", None)
+        row.pop("priority", None)
+        row["age"] = _age_cell(item, updated)
         created = row.get("created")
         if isinstance(created, datetime):
             row["created"] = created.date().isoformat()
         codename = row.get("codename")
         if not isinstance(codename, str) or not is_public_codename(codename):
             row["codename"] = None
+        advisories.append(row)
     payload["advisories"] = advisories
     return json.dumps(payload, indent=2) + "\n"
 
@@ -2196,7 +2199,9 @@ def main(
         updated=moment,
         jira_base=jira_base_url(environ),
     )
-    text = render_json(report) if output_format == "json" else markdown
+    text = (
+        render_json(report, updated=moment) if output_format == "json" else markdown
+    )
     if output_format == "json":
         sys.stdout.write(text)
     else:

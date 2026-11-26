@@ -528,6 +528,10 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertIn("Ember Falcon", markdown)
         self.assertIn(f">{EMBER}</a>", markdown)
         self.assertNotIn(f"{EMBER} {EMBER}", markdown)
+        self.assertIn("<td>created; notified</td>", markdown)
+        payload = json.loads(tracker.render_json(report, updated=NOW))
+        self.assertEqual(payload["advisories"][0]["action"], "created")
+        self.assertEqual(payload["advisories"][0]["notifications"], ["notified"])
 
     def test_reports_hide_the_vulnerability_title(self):
         title = "pins a private map (Ember Falcon)"
@@ -804,10 +808,8 @@ class AdvisoryTrackerTests(unittest.TestCase):
         client = FakeClient([first, second], [anchor()])
         report = run(client)
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_TEXT])
-        self.assertIn("sent mattermost not_created", report.advisories[0].notifications)
-        self.assertNotIn(
-            "sent mattermost not_created", report.advisories[1].notifications
-        )
+        self.assertIn("notified not created", report.advisories[0].notifications)
+        self.assertNotIn("notified not created", report.advisories[1].notifications)
 
     def test_failed_create_posts_one_summary_link(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
@@ -887,7 +889,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(created_fields(client), [])
         actions = {row.ghsa_id: row.action for row in report.advisories}
         self.assertEqual(actions[EMBER], "not_ready")
-        self.assertEqual(actions[WILLOW], "create_disabled")
+        self.assertEqual(actions[WILLOW], "create disabled")
         self.assertEqual(mattermost_texts(client), [])
         self.assertNotIn(
             "not_created", " ".join(report.advisories[0].notifications)
@@ -925,8 +927,10 @@ class AdvisoryTrackerTests(unittest.TestCase):
         report = run(client, dry_run=True)
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [])
+        self.assertIn("would notify not created", report.advisories[0].notifications)
         self.assertIn(
-            "would mattermost not_created", report.advisories[0].notifications
+            "<td>not_ready; would notify not created</td>",
+            tracker.render_markdown(report),
         )
 
     def test_dry_run_does_not_create_or_generate_a_name(self):
@@ -937,8 +941,15 @@ class AdvisoryTrackerTests(unittest.TestCase):
 
         client = FakeClient([advisory], [anchor()])
         report = run(client, dry_run=True, name_source=fail)
-        self.assertEqual(report.advisories[0].action, "would_create")
-        self.assertIn("would mattermost created", report.advisories[0].notifications)
+        self.assertEqual(report.advisories[0].action, "would create")
+        self.assertIn("would notify", report.advisories[0].notifications)
+        self.assertIn(
+            "<td>would create; would notify</td>",
+            tracker.render_markdown(report),
+        )
+        payload = json.loads(tracker.render_json(report))
+        self.assertEqual(payload["advisories"][0]["action"], "would create")
+        self.assertEqual(payload["advisories"][0]["notifications"], ["would notify"])
         self.assertEqual(created_fields(client), [])
 
     def test_created_ticket_is_announced_once(self):
@@ -1088,8 +1099,8 @@ class AdvisoryTrackerTests(unittest.TestCase):
             adf_row_texts(table["content"][1]),
             list(tracker.TABLE_HEADERS),
         )
-        self.assertEqual(group[0]["content"][0]["attrs"]["textAlign"], "center")
-        self.assertEqual(group[1]["content"][0]["attrs"]["textAlign"], "center")
+        self.assertNotIn("attrs", group[0]["content"][0])
+        self.assertNotIn("attrs", group[1]["content"][0])
         data_cells = table["content"][2]["content"]
         self.assertEqual(
             adf_cell_hrefs(data_cells[0]),
@@ -1225,6 +1236,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertNotIn(EMBER, text)
         self.assertIn(WILLOW, text)
         self.assertIn("omitted_advisories", text)
+        self.assertNotIn('"mode"', text)
 
     def test_summary_table_includes_priority_and_age(self):
         advisory = sample_advisory(EMBER, "open (Ember Falcon)")
@@ -1232,12 +1244,14 @@ class AdvisoryTrackerTests(unittest.TestCase):
         report = run(client, command="summary")
         markdown = tracker.render_markdown(report, omit_settled=True, updated=NOW)
         self.assertNotIn("Mode:", markdown)
+        self.assertNotIn("Parent:", markdown)
         self.assertIn("Permissions:", markdown)
         self.assertNotIn("child issue type matches", markdown)
         self.assertNotIn("Last updated", markdown)
         self.assertNotIn("Run summary", markdown)
         self.assertIn('colspan="4"', markdown)
         self.assertIn('colspan="3"', markdown)
+        self.assertIn('style="text-align:center"', markdown)
         self.assertIn(f'<a href="{ADVISORIES_URL}">Github</a>', markdown)
         self.assertIn(
             f'<a href="https://warthogs.atlassian.net/browse/{PARENT}">Jira</a>',
@@ -1251,10 +1265,12 @@ class AdvisoryTrackerTests(unittest.TestCase):
         )
         self.assertIn("<td>medium</td>", markdown)
         self.assertIn("<td>11d</td>", markdown)
-        payload = json.loads(tracker.render_json(report))
+        payload = json.loads(tracker.render_json(report, updated=NOW))
+        self.assertNotIn("mode", payload)
+        self.assertNotIn("priority", payload["advisories"][0])
         self.assertEqual(payload["advisories"][0]["created"], "2026-11-01")
-        self.assertEqual(payload["advisories"][0]["priority"], "Medium")
         self.assertEqual(payload["advisories"][0]["severity"], "medium")
+        self.assertEqual(payload["advisories"][0]["age"], "11d")
 
     def test_summary_table_orders_by_priority_then_oldest_age(self):
         advisories = [
@@ -1347,11 +1363,14 @@ class AdvisoryTrackerTests(unittest.TestCase):
             f'Calm Mink <a href="{ADVISORIES_URL}/{QUIET}">{QUIET}</a>',
             markdown,
         )
-        payload = json.loads(tracker.render_json(report))
+        payload = json.loads(tracker.render_json(report, updated=NOW))
         by_id = {row["ghsa_id"]: row for row in payload["advisories"]}
         self.assertEqual(by_id[QUIET]["created"], "2026-11-01")
+        self.assertEqual(by_id[QUIET]["age"], "11d")
         self.assertIsNone(by_id[WILLOW]["created"])
+        self.assertEqual(by_id[WILLOW]["age"], "")
         self.assertIsNone(by_id[EMBER]["created"])
+        self.assertEqual(by_id[EMBER]["age"], "")
         table = tracker.tracking_section(report, NOW, None)[2]
         cells = [adf_row_texts(row) for row in table["content"][2:]]
         self.assertEqual(cells[0][2], "11d")
@@ -1419,7 +1438,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         report = run(client, env=environment(ADVISORY_TRACKER_NOTIFY="false"))
         self.assertEqual(report.advisories[0].action, "not_ready")
         self.assertIn(
-            "notify disabled not_created", report.advisories[0].notifications
+            "notify disabled not created", report.advisories[0].notifications
         )
         self.assertEqual(mattermost_texts(client), [])
 
