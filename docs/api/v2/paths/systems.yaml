@@ -69,6 +69,8 @@ post:
             - $ref: '../components/schemas/SystemActionInstall.yaml'
             - $ref: '../components/schemas/SystemActionReboot.yaml'
             - $ref: '../components/schemas/SystemActionFixEncryptionSupport.yaml'
+            - $ref: '../components/schemas/SystemActionGenerateRecoveryKey.yaml'
+            - $ref: '../components/schemas/SystemActionReprovision.yaml'
       # TODO document multipart/form-data
   responses:
     200:
@@ -93,16 +95,20 @@ post:
               result:
                 description: |-
                   The result of the synchronous operation, specific to each action:
-                    - `null` for action `reboot`; and
-                    - the updated system details for action `fix-encryption-support`.
+                    - `null` for action `reboot`;
+                    - the updated system details for action `fix-encryption-support`; and
+                    - the generated recovery key for action `generate-recovery-key`.
                 anyOf:
                   - $ref: '../components/schemas/SystemDetails.yaml'
+                  - $ref: '../components/schemas/GenerateRecoveryKeyResponse.yaml'
                   - type: object
                     nullable: true
                     enum:
                       - null
     202:
-      description: The asynchronous action (e.g., create, install) was accepted and is in progress.
+      description: >-
+        The asynchronous action (e.g., create, install, reprovision) was
+        accepted and is in progress.
       $ref: '../components/responses/Accepted.yaml'
     400:
       $ref: '../components/responses/BadRequest.yaml'
