@@ -20,6 +20,7 @@ package certstate
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -89,6 +90,17 @@ func (m *CertManager) ensureGarbageCollectionRun() error {
 	return garbageCollectCertificateGenerations(bootID)
 }
 
+// removeLegacyCertificateDatabase removes the legacy merged certificate path
+// if the merged path is not a symlink.
+func (m *CertManager) removeLegacyCertificateDatabase() error {
+	mergedDir := CurrentCertificateDir()
+	if osutil.IsSymlink(mergedDir) {
+		return nil
+	}
+	// the legacy setup used plain directories instead of symlinks
+	return os.RemoveAll(mergedDir)
+}
+
 func (m *CertManager) Ensure() error {
 	st := m.state
 	st.Lock()
@@ -109,44 +121,58 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	// The reason we set it already, before any of the checks have actually run, is
-	// that in the case of errors we don't want to keep trying the below things. They are
-	// meant to run just once per boot (of snapd is fine too).
-	m.oneTimeChecksRan = true
-
 	// If the ssl certs directory is missing, nothing to do.
 	if !hasSystemCertsDir() {
 		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
 		return nil
 	}
 
-	// If the CA certificate database is already present, nothing to do.
-	// Remove the old style merged folder if it exists. If the merged folder exists, and
-	// it's not a symlink, we remove the folder and regenerate the database
-	mergedDir := CurrentCertificateDir()
-	if osutil.IsSymlink(mergedDir) {
-		// The merged directory is already a symlink, we assume it's correctly set up and skip generation.
-		logger.Debugf("merged certificate database exists, running garbage collection")
-		return m.ensureGarbageCollectionRun()
-	} else {
-		if err := os.RemoveAll(mergedDir); err != nil {
-			// In case of weird errors in this case, log it and skip generation. If it was
-			// a weird FS error, then we'll just retry again on next snapd startup.
-			logger.Noticef("error checking merged certificate database: %v", err)
-			return nil
-		}
+	// Skip reconciliation while an update-cert-db change is in flight so we do
+	// not race the generation that the task's undo expects to restore. This is
+	// checked before marking the one-time checks as run so that a later Ensure
+	// (e.g. once the change has finished or been aborted) still reconciles the
+	// store instead of waiting for the next snapd restart.
+	if hasTaskInProgress(st, "update-cert-db") {
+		logger.Debugf("skipping certificate database reconciliation as update-cert-db change is in flight")
+		return nil
 	}
 
-	// Run garbage collection for the cert generations, but only after the symlink check.
+	// At this point make sure we dont run again
+	m.oneTimeChecksRan = true
+
+	// If the merged certificate path is a plain directory (the old layout from
+	// before generations were published), remove it so it can be regenerated.
+	if err := m.removeLegacyCertificateDatabase(); err != nil {
+		// In case of weird errors in this case, log it and skip generation. If it was
+		// a weird FS error, then we'll just retry again on next snapd startup.
+		logger.Noticef("error checking merged certificate database: %v", err)
+		return nil
+	}
+
+	// Run garbage collection for the cert generations before reconciliation so a
+	// currently-active generation that is about to be displaced has any stale
+	// inactivity marker cleared first, and obsolete trees are reclaimed before
+	// rendering. A GC failure (e.g. a failed boot-ID read or a full disk) must
+	// not block the reconciliation below, so log it and carry on.
 	if err := m.ensureGarbageCollectionRun(); err != nil {
-		return err
+		logger.Noticef("cannot garbage collect certificate generations: %v", err)
 	}
 
-	// Create the update CA certificate database, this is likely a first
-	// run on a pre-existing system after this was introduced.
+	// Reconcile the managed store with the current inputs. This covers both the
+	// first run on a pre-existing system (no merged symlink yet) and the case
+	// where merged already points at a generation. The latter matters because a
+	// refresh of the model base may have been planned by a snapd that predates
+	// the managed certificate store (and so scheduled no update-cert-db task),
+	// leaving the published generation rendered from the previous base.
+	//
+	// Note: RefreshCertificateDatabase is content-addressed in what it
+	// *publishes* (the merged pointer only moves when the cert set changes), but
+	// it always parses every certificate and renders a full staged tree, so on
+	// Ubuntu Core this work now happens under the state lock on every snapd
+	// start, not just the first run.
+	//
 	// TODO: The database will be generated with the lock being held here, which is not
 	// the best, as there is some overhead in file-generation and hashing.
-	logger.Noticef("No CA certificate database found, generating it now")
 	return RefreshCertificateDatabase()
 }
 
@@ -186,13 +212,27 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
+	// Remove the old-style merged directory (a plain directory from before
+	// generations were published) before recording the previous generation.
+	// Without this, recording the previous generation would fail with
+	// "readlink .../merged: invalid argument" (merged is a directory, not a
+	// symlink), which would fail the whole base refresh. Note: if a legacy
+	// directory was removed here and the change is later undone, the recorded
+	// previous target is empty and undo removes merged, leaving no store until
+	// the next Ensure reconciles it again.
+	st.Lock()
+	err := m.removeLegacyCertificateDatabase()
+	st.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot remove old certificate database: %v", err)
+	}
+
 	// Record the current generation before updating, so that
 	// if the system reboots during the update, we have a known
 	// generation to roll back to.
 	// The function will do it's own lock/unlock to force a commit to the underlying
 	// state to disk.
-	_, err := recordCurrentCertificateGeneration(t, previousGenerationTaskKey)
-	if err != nil {
+	if _, err := recordCurrentCertificateGeneration(t, previousGenerationTaskKey); err != nil {
 		return err
 	}
 
