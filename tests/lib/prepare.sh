@@ -115,10 +115,10 @@ setup_snapd_pkgproxy() {
 
     # Make snapd download through pkgproxy, with a drop-in for its service.
     mkdir -p /etc/systemd/system/snapd.service.d
-    {
-        echo '[Service]'
-        echo "Environment=SNAPPY_FORCE_API_URL=$PKGPROXY_URL"
-    } > /etc/systemd/system/snapd.service.d/pkgproxy.conf
+    cat <<EOF > /etc/systemd/system/snapd.service.d/pkgproxy.conf
+[Service]
+Environment=SNAPPY_FORCE_API_URL=$PKGPROXY_URL
+EOF
 
     # Restart snapd to apply it, where snapd is installed.
     systemctl daemon-reload
