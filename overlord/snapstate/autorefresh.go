@@ -107,6 +107,7 @@ func (rc *refreshCandidate) SnapBase() string {
 }
 
 func (rc *refreshCandidate) DownloadSize() int64 {
+	// XXX: should this add the integrity data size as well?
 	return rc.DownloadInfo.Size
 }
 

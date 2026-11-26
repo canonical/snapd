@@ -103,6 +103,9 @@ func integrityFilePath(snapPath, digest string) string {
 func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error) {
 	switch params.Type {
 	case "dm-verity":
+		if !validHexDigest.MatchString(params.Digest) {
+			return "", fmt.Errorf("invalid dm-verity digest %q", params.Digest)
+		}
 		return integrityFilePath(snapPath, params.Digest), nil
 	default:
 		return "", fmt.Errorf("unexpected integrity data type %q", params.Type)

@@ -62,8 +62,8 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckSuccess(c *C) {
 	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
-	digest := "test"
-	verityFilePath := "foo_test.dmverity"
+	digest := "abcd"
+	verityFilePath := "foo_abcd.dmverity"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -95,8 +95,8 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckCrossCheckError(c *C) {
 	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
-	digest := "test"
-	verityFilePath := "foo_test.dmverity"
+	digest := "abcd"
+	verityFilePath := "foo_abcd.dmverity"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -213,6 +213,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckNotExist(c *C) {
 
 	integrityDataParams := integrity.IntegrityDataParams{
 		Type:          "dm-verity",
+		Digest:        "abcd",
 		HashAlg:       "sha256",
 		DataBlockSize: 4096,
 		HashBlockSize: 4096,
@@ -221,7 +222,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckNotExist(c *C) {
 	hashFileName, err := integrity.LookupDataAndCrossCheck(snapPath, &integrityDataParams)
 	c.Check(hashFileName, Equals, "")
 	c.Check(errors.Is(err, integrity.ErrDmVerityDataNotFound), Equals, true)
-	c.Check(err, ErrorMatches, `dm-verity data not found: "foo_.dmverity" doesn't exist.`)
+	c.Check(err, ErrorMatches, `dm-verity data not found: "foo_abcd.dmverity" doesn't exist.`)
 }
 
 func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckAnyError(c *C) {
@@ -232,7 +233,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckAnyError(c *C) {
 	})
 	defer restore()
 
-	hashFileName, err := integrity.LookupDataAndCrossCheck(snapPath, &integrity.IntegrityDataParams{Type: "dm-verity"})
+	hashFileName, err := integrity.LookupDataAndCrossCheck(snapPath, &integrity.IntegrityDataParams{Type: "dm-verity", Digest: "abcd"})
 	c.Check(hashFileName, Equals, "")
 	c.Check(err, ErrorMatches, "any other error")
 }
@@ -310,6 +311,13 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
 	integrityFile, err := idp.IntegrityFile("/path/to/instance.snap")
 	c.Assert(err, IsNil)
 	c.Check(integrityFile, Equals, "/path/to/instance_aaa.dmverity")
+
+	for _, digest := range []string{"", "ABCD", "aa/bb", "aa_bb", "../../aa"} {
+		idp.Digest = digest
+		path, err := idp.IntegrityFile("/path/to/instance.snap")
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid dm-verity digest %q", digest))
+		c.Check(path, Equals, "")
+	}
 
 	idp = integrity.IntegrityDataParams{
 		Type:   "bad-type",

@@ -210,6 +210,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 		}
 		prereqs = []string{}
 		for _, res := range results {
+			// XXX: should this add the integrity data size as well?
 			snapSizes[res.InstanceName()] = uint64(res.Size)
 			// results may have new base or content providers
 			resolveBaseAndContentProviders(installSnapInfo{Info: res.Info})

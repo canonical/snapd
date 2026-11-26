@@ -13036,7 +13036,7 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskWithIntegrityDataContinuesAutoRefr
 		Flags:        snapstate.Flags{IsAutoRefresh: true},
 		DownloadInfo: &snap.DownloadInfo{DownloadURL: "my-url"},
 		IntegrityDataDownloadInfos: []snap.IntegrityDataDownloadInfo{
-			mockIntegrityDataDownloadInfo("dm-verity", "digest"),
+			mockIntegrityDataDownloadInfo("dm-verity", "abcd"),
 		},
 	}
 	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
@@ -13058,7 +13058,7 @@ func (s *snapmgrTestSuite) TestPreDownloadTaskWithIntegrityDataContinuesAutoRefr
 	// both the pre-download and the auto-refresh download the integrity data
 	dlOpts := &store.DownloadOptions{Scheduled: true, LeavePartialOnError: true}
 	snapFn := filepath.Join(dirs.SnapBlobDir, "foo_2.snap")
-	integrityFn := filepath.Join(dirs.SnapBlobDir, "foo_2_digest.dmverity")
+	integrityFn := filepath.Join(dirs.SnapBlobDir, "foo_2_abcd.dmverity")
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{name: "foo", target: snapFn, opts: dlOpts},
 		{name: "foo", target: integrityFn, opts: dlOpts},

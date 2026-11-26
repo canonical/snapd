@@ -621,7 +621,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapWithIntegrityData(c *C) {
 			DownloadURL: "http://some-url.com/snap",
 		},
 		IntegrityDataDownloadInfos: []snap.IntegrityDataDownloadInfo{
-			mockIntegrityDataDownloadInfo("dm-verity", "digest"),
+			mockIntegrityDataDownloadInfo("dm-verity", "abcd"),
 		},
 	})
 	chg := s.state.NewChange("sample", "...")
@@ -641,7 +641,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapWithIntegrityData(c *C) {
 		},
 		{
 			name:   "foo",
-			target: filepath.Join(dirs.SnapBlobDir, "foo_11_digest.dmverity"),
+			target: filepath.Join(dirs.SnapBlobDir, "foo_11_abcd.dmverity"),
 		},
 	})
 }
@@ -692,6 +692,18 @@ func (s *downloadSnapSuite) TestDoDownloadSnapUnsupportedIntegrityDataType(c *C)
 }
 
 func (s *downloadSnapSuite) TestUndoDownloadSnapWithIntegrityData(c *C) {
+	s.testUndoDownloadSnapWithIntegrityData(c, "")
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapIntegrityFileRemovalError(c *C) {
+	s.testUndoDownloadSnapWithIntegrityData(c, "integrity-hash-abcd")
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapPartialIntegrityFileRemovalError(c *C) {
+	s.testUndoDownloadSnapWithIntegrityData(c, "<not-provided>")
+}
+
+func (s *downloadSnapSuite) testUndoDownloadSnapWithIntegrityData(c *C, failingChecksum string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -704,7 +716,7 @@ func (s *downloadSnapSuite) TestUndoDownloadSnapWithIntegrityData(c *C) {
 			Sha3_384: "some-hash",
 		},
 		IntegrityDataDownloadInfos: []snap.IntegrityDataDownloadInfo{
-			mockIntegrityDataDownloadInfo("dm-verity", "digest"),
+			mockIntegrityDataDownloadInfo("dm-verity", "abcd"),
 		},
 	}
 	t := s.state.NewTask("download-snap", "test")
@@ -713,22 +725,27 @@ func (s *downloadSnapSuite) TestUndoDownloadSnapWithIntegrityData(c *C) {
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
+	integrityFn := filepath.Join(dirs.SnapBlobDir, "foo_1_abcd.dmverity")
+	if failingChecksum != "" {
+		s.fakeStore.cleanupDownloadArtifactsError = map[string]error{failingChecksum: errors.New("mock error")}
+	}
+
 	s.state.Unlock()
 	s.se.Ensure()
 	s.se.Wait()
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
-	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
-		{
-			op:   "storesvc-cleanup-download-artifacts",
-			sha3: "some-hash",
-			path: sup.BlobPath(),
-		},
-		{
-			op:   "storesvc-cleanup-download-artifacts",
-			sha3: "integrity-hash-digest",
-			path: filepath.Join(dirs.SnapBlobDir, "foo_1_digest.dmverity"),
-		},
-	})
+	expected := fakeOps{
+		{op: "storesvc-cleanup-download-artifacts", sha3: "<not-provided>", path: integrityFn + ".partial"},
+		{op: "storesvc-cleanup-download-artifacts", sha3: "integrity-hash-abcd", path: integrityFn},
+		{op: "storesvc-cleanup-download-artifacts", sha3: "some-hash", path: sup.BlobPath()},
+	}
+	switch failingChecksum {
+	case "<not-provided>":
+		expected = expected[:1]
+	case "integrity-hash-abcd":
+		expected = expected[:2]
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }

@@ -189,7 +189,7 @@ func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnap
 
 	idp := integrity.IntegrityDataParams{
 		Type:   "dm-verity",
-		Digest: "some-digest",
+		Digest: "abcd",
 	}
 	var expectedIdp integrity.IntegrityDataParams
 	if opts.integrityLookupErr == nil && !opts.dmverityDisabled {

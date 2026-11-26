@@ -456,16 +456,17 @@ func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = func() error {
 		st.Unlock()
 		defer st.Lock()
-		// Remove the snap blob from downloads directory but keep the cache
-		// entry for reuse if the download is triggered again in another change
-		// pertaining to the same snap revision.
-		err := theStore.CleanupDownloadArtifacts(fname, snapsup.DownloadInfo)
 		if integrityInfo != nil {
-			if ierr := theStore.CleanupDownloadArtifacts(integrityFn, &integrityInfo.DownloadInfo); ierr != nil {
-				err = strutil.JoinErrors(err, ierr)
+			// Keep the snap until its integrity files are gone so periodic
+			// cleanup can still discover them after an error or restart.
+			if err := theStore.CleanupDownloadArtifacts(integrityFn+".partial", nil); err != nil {
+				return err
+			}
+			if err := theStore.CleanupDownloadArtifacts(integrityFn, &integrityInfo.DownloadInfo); err != nil {
+				return err
 			}
 		}
-		return err
+		return theStore.CleanupDownloadArtifacts(fname, snapsup.DownloadInfo)
 	}()
 	if err != nil {
 		t.Logf("cannot clean up downloaded snap artifacts: %v", err)
