@@ -3,11 +3,30 @@ name: sync master into fips
 on:
   push:
     branches: ["master"]
+  pull_request:
+    branches: ["fips"]
+    types: [closed]
   workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
+
+# The workflow keeps a single head branch, sync-master-to-fips, mirroring
+# the state of the fips branch against master:
+# - the branch is created and updated only by this workflow, humans must
+#   not create it, but they may push commits to an existing branch to
+#   resolve conflicts;
+# - commits pushed by humans are never overwritten by the workflow;
+# - a missing head branch, e.g. under auto-delete-on-merge, is recreated
+#   by the workflow and must not stall the sync.
+# For an existing sync PR:
+# - approved: leave the PR alone, keep a pinned comment with the list of
+#   commits waiting on master;
+# - not approved, no conflicts: update the branch, mark the PR ready;
+# - not approved, merge conflicts: update the branch at master, mark the
+#   PR draft;
+# With no sync PR: open a PR, or a draft PR listing the conflicts.
 
 concurrency:
   group: sync-master-to-fips
@@ -29,15 +48,106 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # a closed pull request may have no merge ref left to check out
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
 
       - name: prepare synchronization PR
         shell: bash
         run: |
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
           fips_sha="$(git rev-parse origin/fips)"
+          bot_email='41898282+github-actions[bot]@users.noreply.github.com'
 
           if git merge-base --is-ancestor origin/master "$fips_sha"; then
             exit 0
+          fi
+
+          # Sort by creation time so the current PR is picked over any historical
+          # closed/merged ones for the same head branch.
+          sync_pr="$(gh pr list --state all --base fips --head sync-master-to-fips \
+            --limit 10 --json number,createdAt --jq 'sort_by(.createdAt) | reverse | .[0].number // empty')"
+          sync_pr_state="$(gh pr list --state all --base fips --head sync-master-to-fips \
+            --limit 10 --json state,createdAt --jq 'sort_by(.createdAt) | reverse | .[0].state // empty')"
+
+          # Keep a single comment up to date instead of adding one per run.
+          comment_pr() {
+            gh pr comment "$sync_pr" --edit-last --create-if-none --body "$1"
+          }
+
+          # The sync-master-to-fips branch is created and updated only by this
+          # workflow. Humans must not create it, but they may push commits to it
+          # to resolve conflicts while its PR is open. The branch can also be
+          # missing entirely, e.g. under auto-delete-on-merge; it is recreated
+          # below, a missing branch must not stall the sync.
+          branch_sha="$(git rev-parse --verify --quiet origin/sync-master-to-fips || true)"
+
+          case "$sync_pr_state" in
+          MERGED)
+            # the last synchronization landed, the branch is free for the next one
+            sync_pr=""
+            ;;
+          CLOSED)
+            # A fresh PR for a branch that already had one closed is refused, so
+            # reuse it; otherwise the sync would stop without anyone noticing.
+            # GitHub cannot reopen a PR whose head branch is gone, recreate it
+            # first; the branch content is replaced below anyway.
+            if [[ -z "$branch_sha" ]]; then
+              git push origin origin/master:refs/heads/sync-master-to-fips
+              branch_sha="$(git rev-parse origin/master)"
+            fi
+            gh pr reopen "$sync_pr"
+            comment_pr "This PR was closed while master still needed synchronizing, so the workflow reopened it. Disable or edit the workflow to stop the sync."
+            ;;
+          esac
+
+          if [[ -n "$branch_sha" ]]; then
+            if git merge-base --is-ancestor origin/master origin/sync-master-to-fips; then
+              exit 0
+            fi
+
+            # Never overwrite commits the workflow did not write, they are
+            # usually a manual conflict resolution.
+            foreign="$(git log --format=%ae origin/sync-master-to-fips --not origin/fips origin/master |
+              grep -cvxF "$bot_email")" || foreign=0
+            if [[ "$foreign" -gt 0 ]]; then
+              if [[ -n "$sync_pr" ]]; then
+                comment_pr "This branch has commits that were not written by the synchronization workflow, so auto-updates are skipped. Update it manually to take in the latest master."
+              else
+                # No PR to comment on, surface the situation as a draft PR so it
+                # does not only live in the workflow run log.
+                pr_url="$(gh pr create --draft --base fips --head sync-master-to-fips \
+                  --title "chore: Synchronize fips with master" \
+                  --body "The synchronization workflow found commits on this branch that it did not write, so auto-updates are skipped. Update it manually to take in the latest master. See the comment below.")"
+                sync_pr="${pr_url##*/}"
+                comment_pr "This branch has commits that were not written by the synchronization workflow, so auto-updates are skipped. Update it manually to take in the latest master."
+              fi
+              exit 0
+            fi
+          fi
+
+          if [[ -n "$sync_pr" ]]; then
+            # An approved PR is left alone so that it can still land, the commits
+            # it is missing are picked up by the next synchronization.
+            if [[ "$(gh pr view "$sync_pr" --json reviewDecision --jq '.reviewDecision // ""')" == APPROVED ]]; then
+              # An approved PR is left alone so that it can still land; a deleted
+              # head branch would keep it from ever merging, so recreate it first.
+              if [[ -z "$branch_sha" ]]; then
+                git push origin origin/master:refs/heads/sync-master-to-fips
+                branch_sha="$(git rev-parse origin/master)"
+              fi
+              total="$(git rev-list --count origin/sync-master-to-fips..origin/master)"
+              new_commits="$(git log --oneline -30 origin/sync-master-to-fips..origin/master)"
+              if [[ "$total" -gt 30 ]]; then
+                new_commits="$new_commits
+          ... and $((total - 30)) more"
+              fi
+              comment_pr "This approved PR is left untouched so that it can land. Commits on master waiting for the next synchronization:
+
+          $new_commits"
+              exit 0
+            fi
+
+            is_draft="$(gh pr view "$sync_pr" --json isDraft --jq '.isDraft')"
           fi
 
           git switch --detach "$fips_sha"
@@ -47,14 +157,35 @@ jobs:
           git show origin/master:build-aux/snap/local/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
           git add build-aux/snap/snapcraft.yaml
 
-          git commit -m "Merge master into fips, using snapcraft-fips.yaml"
+          if [[ -n "$(git ls-files -u)" ]]; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            git push --force-with-lease origin origin/master:refs/heads/sync-master-to-fips
+            if [[ -n "$sync_pr" ]]; then
+              if [[ "$is_draft" == false ]]; then
+                gh pr ready "$sync_pr" --undo
+              fi
+              comment_pr "The automated merge faced conflicts on master, so the branch was reset to master and the PR marked as a draft. Resolve these files, push, and mark the PR ready for review:
 
-          git push --force-with-lease origin HEAD:refs/heads/sync-master-to-fips
+          $conflicts"
+            else
+              gh pr create --draft --base fips --head sync-master-to-fips \
+                --title "chore: Synchronize fips with master" \
+                --body "The automated merge failed (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}). Unresolved files:
 
-          existing_pr="$(gh pr list --base fips --head sync-master-to-fips \
-            --limit 1 --json url --jq '.[0].url // empty')"
-          if [[ -z "$existing_pr" ]]; then
-            gh pr create --base fips --head sync-master-to-fips \
-              --title "chore: Synchronize fips with master" \
-              --body 'Synchronize fips with master, using snapcraft-fips.yaml from master as snapcraft.yaml. Merge using "Create a merge commit".'
+          $conflicts
+
+          This branch starts at master. Merge the latest fips and master into it, resolve the conflicts, and copy build-aux/snap/local/snapcraft-fips.yaml from master to build-aux/snap/snapcraft.yaml. Push the result and mark this PR ready for review. Merge using 'Create a merge commit'."
+            fi
+          else
+            git commit -m "Merge master into fips, using snapcraft-fips.yaml"
+            git push --force-with-lease origin HEAD:refs/heads/sync-master-to-fips
+            if [[ -n "$sync_pr" ]]; then
+              if [[ "$is_draft" == true ]]; then
+                gh pr ready "$sync_pr"
+              fi
+            else
+              gh pr create --base fips --head sync-master-to-fips \
+                --title "chore: Synchronize fips with master" \
+                --body 'Synchronize fips with master, using snapcraft-fips.yaml from master as snapcraft.yaml. Merge using "Create a merge commit".'
+            fi
           fi
