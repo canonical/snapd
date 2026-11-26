@@ -49,6 +49,7 @@ type.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
@@ -71,6 +72,8 @@ TRACKING_HEADING = "Tracking table"
 MATTERMOST_PREVIEW_BLOCKER = "[](mailto:advisory-tracker)"
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 TABLE_HEADERS = ["Advisory", "Priority", "Age", "State", "Ticket", "Status", "Result"]
+GITHUB_GROUP_SPAN = 4
+JIRA_GROUP_SPAN = 3
 CHANNELS = ("mattermost",)
 BUG_LINK_FIELD_NAME = "Bug Link"
 BUG_LINK_FIELD_ENV = "JIRA_BUG_LINK_FIELD"
@@ -204,6 +207,20 @@ class AdvisoryRow:
 class Permissions:
     advisory_tracker_create: bool
     advisory_tracker_notify: bool
+
+
+@dataclass(frozen=True)
+class Inline:
+    text: str
+    href: str | None = None
+
+
+@dataclass(frozen=True)
+class TableCell:
+    lines: tuple[tuple[Inline, ...], ...]
+    header: bool = False
+    colspan: int = 1
+    align: str | None = None
 
 
 @dataclass
@@ -813,18 +830,52 @@ def _adf_heading(text: str) -> dict[str, Any]:
     }
 
 
-def _adf_table_cell(text: str, header: bool) -> dict[str, Any]:
-    shown = text if text != "" else "-"
-    return {
-        "type": "tableHeader" if header else "tableCell",
-        "content": [_adf_paragraph([_adf_text(shown)])],
+def _adf_hard_break() -> dict[str, Any]:
+    return {"type": "hardBreak"}
+
+
+def _adf_inline_nodes(line: tuple[Inline, ...]) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+    for index, part in enumerate(line):
+        if index:
+            nodes.append(_adf_text(" "))
+        if part.href:
+            nodes.append(_adf_link(part.text, part.href))
+        else:
+            nodes.append(_adf_text(part.text))
+    return nodes
+
+
+def _adf_cell_content(cell: TableCell) -> list[dict[str, Any]]:
+    lines = [line for line in cell.lines if line]
+    if not lines:
+        parts: list[dict[str, Any]] = [_adf_text("-")]
+    else:
+        parts = []
+        for index, line in enumerate(lines):
+            if index:
+                parts.append(_adf_hard_break())
+            parts.extend(_adf_inline_nodes(line))
+    paragraph: dict[str, Any] = _adf_paragraph(parts)
+    if cell.align == "center":
+        paragraph["attrs"] = {"textAlign": "center"}
+    return [paragraph]
+
+
+def _adf_table_cell_model(cell: TableCell) -> dict[str, Any]:
+    node: dict[str, Any] = {
+        "type": "tableHeader" if cell.header else "tableCell",
+        "content": _adf_cell_content(cell),
     }
+    if cell.colspan > 1:
+        node["attrs"] = {"colspan": cell.colspan}
+    return node
 
 
-def _adf_table_row(values: list[str], header: bool = False) -> dict[str, Any]:
+def _adf_table_row_model(cells: Sequence[TableCell]) -> dict[str, Any]:
     return {
         "type": "tableRow",
-        "content": [_adf_table_cell(value, header) for value in values],
+        "content": [_adf_table_cell_model(cell) for cell in cells],
     }
 
 
@@ -839,32 +890,140 @@ def optional_run_url(env: Mapping[str, str]) -> str | None:
         return None
 
 
-def _tracking_row_cells(row: AdvisoryRow, now: datetime | None) -> list[str]:
-    if row.issue_keys:
-        tickets = ", ".join(row.issue_keys)
-    else:
-        tickets = row.issue_key or ""
+def github_advisories_url() -> str:
+    return f"https://github.com/{repository_name({})}/security/advisories"
+
+
+def _plain_cell(text: str, *, header: bool = False) -> TableCell:
+    if text == "":
+        return TableCell(lines=(), header=header)
+    return TableCell(lines=((Inline(text),),), header=header)
+
+
+def _priority_cell(row: AdvisoryRow) -> TableCell:
+    if row.severity in SEVERITY_RANK:
+        return _plain_cell(row.severity)
+    return _plain_cell("")
+
+
+def _advisory_table_cell(row: AdvisoryRow) -> TableCell:
+    ghsa = Inline(row.ghsa_id, href=row.url or None)
+    label = public_label(row)
+    if label == row.ghsa_id:
+        return TableCell(lines=((ghsa,),))
+    return TableCell(lines=((Inline(label), ghsa),))
+
+
+def _ticket_table_cell(row: AdvisoryRow, jira_base: str) -> TableCell:
+    keys = list(row.issue_keys)
+    if not keys and row.issue_key:
+        keys = [row.issue_key]
+    if not keys:
+        return TableCell(lines=())
+    lines = tuple((Inline(key, href=f"{jira_base}/browse/{key}"),) for key in keys)
+    return TableCell(lines=lines)
+
+
+def _tracking_row_cells(
+    row: AdvisoryRow, now: datetime | None, jira_base: str
+) -> list[TableCell]:
     return [
-        _advisory_cell(row),
-        row.priority,
-        _age_cell(row, now),
-        row.state,
-        tickets,
-        row.issue_status or "",
-        _result_cell(row),
+        _advisory_table_cell(row),
+        _priority_cell(row),
+        _plain_cell(_age_cell(row, now)),
+        _plain_cell(row.state),
+        _ticket_table_cell(row, jira_base),
+        _plain_cell(row.issue_status or ""),
+        _plain_cell(_result_cell(row)),
     ]
 
 
-def _tracking_rows(report: Report, now: datetime | None) -> list[list[str]]:
-    rows = [list(TABLE_HEADERS)]
-    for row in ranked_advisories(report, omit_settled=True):
-        rows.append(_tracking_row_cells(row, now))
-    return rows
+def _group_header_cells(parent_key: str, jira_base: str) -> list[TableCell]:
+    return [
+        TableCell(
+            lines=((Inline("Github", href=github_advisories_url()),),),
+            header=True,
+            colspan=GITHUB_GROUP_SPAN,
+            align="center",
+        ),
+        TableCell(
+            lines=((Inline("Jira", href=f"{jira_base}/browse/{parent_key}"),),),
+            header=True,
+            colspan=JIRA_GROUP_SPAN,
+            align="center",
+        ),
+    ]
+
+
+def _column_header_cells() -> list[TableCell]:
+    return [_plain_cell(name, header=True) for name in TABLE_HEADERS]
+
+
+def _empty_table_row() -> list[TableCell]:
+    cells = [_plain_cell("") for _ in TABLE_HEADERS]
+    cells[-1] = _plain_cell("No open advisories")
+    return cells
+
+
+def _html_inline(part: Inline) -> str:
+    text = html.escape(part.text)
+    if part.href:
+        href = html.escape(part.href, quote=True)
+        return f'<a href="{href}">{text}</a>'
+    return text
+
+
+def _html_line(line: tuple[Inline, ...]) -> str:
+    return " ".join(_html_inline(part) for part in line)
+
+
+def _html_cell(cell: TableCell) -> str:
+    tag = "th" if cell.header else "td"
+    attrs: list[str] = []
+    if cell.colspan > 1:
+        attrs.append(f'colspan="{cell.colspan}"')
+    if cell.align == "center":
+        attrs.append('align="center"')
+        attrs.append('style="text-align:center"')
+    inner = "<br>".join(_html_line(line) for line in cell.lines if line)
+    attr = (" " + " ".join(attrs)) if attrs else ""
+    return f"<{tag}{attr}>{inner}</{tag}>"
+
+
+def _html_row(cells: Sequence[TableCell]) -> str:
+    return "<tr>" + "".join(_html_cell(cell) for cell in cells) + "</tr>"
+
+
+def _html_tracking_table(
+    report: Report,
+    omit_settled: bool,
+    now: datetime | None,
+    jira_base: str,
+) -> str:
+    rows = [
+        _html_row(_group_header_cells(report.parent, jira_base)),
+        _html_row(_column_header_cells()),
+    ]
+    body = [
+        _html_row(_tracking_row_cells(row, now, jira_base))
+        for row in ranked_advisories(report, omit_settled)
+    ]
+    return (
+        "<table>\n<thead>\n"
+        + "\n".join(rows)
+        + "\n</thead>\n<tbody>\n"
+        + "\n".join(body)
+        + "\n</tbody>\n</table>"
+    )
 
 
 def tracking_section(
-    report: Report, moment: datetime, run_url: str | None
+    report: Report,
+    moment: datetime,
+    run_url: str | None,
+    jira_base: str | None = None,
 ) -> list[dict[str, Any]]:
+    base = jira_base or jira_base_url({})
     stamp = _updated_stamp(moment)
     if run_url:
         updated = _adf_paragraph(
@@ -875,15 +1034,19 @@ def tracking_section(
         )
     else:
         updated = _adf_paragraph([_adf_text(f"Last updated {stamp}.")])
-    table_rows = _tracking_rows(report, moment)
-    if len(table_rows) == 1:
-        table_rows.append(["-", "-", "-", "-", "-", "-", "No open advisories"])
+    data = [
+        _tracking_row_cells(row, moment, base)
+        for row in ranked_advisories(report, omit_settled=True)
+    ]
+    if not data:
+        data = [_empty_table_row()]
     table = {
         "type": "table",
         "attrs": {"isNumberColumnEnabled": False, "layout": "default"},
         "content": [
-            _adf_table_row(table_rows[0], header=True),
-            *[_adf_table_row(row) for row in table_rows[1:]],
+            _adf_table_row_model(_group_header_cells(report.parent, base)),
+            _adf_table_row_model(_column_header_cells()),
+            *[_adf_table_row_model(row) for row in data],
         ],
     }
     return [_adf_heading(TRACKING_HEADING), updated, table]
@@ -919,7 +1082,10 @@ def publish_tracking_table(tracker: Tracker, report: Report) -> None:
             description_with_tracking_table(
                 existing,
                 tracking_section(
-                    report, tracker.now, optional_run_url(tracker.env)
+                    report,
+                    tracker.now,
+                    optional_run_url(tracker.env),
+                    jira_base_url(tracker.env),
                 ),
             ),
         )
@@ -1871,11 +2037,6 @@ def execute(
     return report
 
 
-def _cell(value: Any) -> str:
-    text = "" if value is None else str(value)
-    return text.replace("|", "/").replace("\n", " ")
-
-
 def _result_cell(row: AdvisoryRow) -> str:
     result = row.error or row.action
     if row.notifications:
@@ -1899,13 +2060,6 @@ def displayed_advisories(
     ]
 
 
-def _advisory_cell(row: AdvisoryRow) -> str:
-    label = public_label(row)
-    if label == row.ghsa_id:
-        return row.ghsa_id
-    return f"{label} {row.ghsa_id}"
-
-
 def _created_line(row: AdvisoryRow) -> str:
     ticket = row.issue_key or ""
     if row.codename and is_public_codename(row.codename):
@@ -1927,23 +2081,15 @@ def render_markdown(
     report: Report,
     omit_settled: bool = False,
     updated: datetime | None = None,
-    run_url: str | None = None,
+    jira_base: str | None = None,
 ) -> str:
-    lines = ["# Advisory tracker", ""]
-    if updated is not None:
-        stamp = _updated_stamp(updated)
-        if run_url:
-            lines.append(f"Last updated {stamp}. [Run summary]({run_url})")
-        else:
-            lines.append(f"Last updated {stamp}.")
-        lines.append("")
-    lines.extend(
-        [
-            f"Parent: `{report.parent}`",
-            f"Mode: {report.mode}",
-            permission_line(report.permissions),
-        ]
-    )
+    base = jira_base or jira_base_url({})
+    lines = [
+        "# Advisory tracker",
+        "",
+        f"Parent: `{report.parent}`",
+        permission_line(report.permissions),
+    ]
     visible = ranked_advisories(report, omit_settled)
     if omit_settled:
         hidden = len(report.advisories) - len(visible)
@@ -1951,20 +2097,7 @@ def render_markdown(
     lines.append("")
     if report.confirmation_error:
         lines.extend([f"Confirmation: {report.confirmation_error}", ""])
-    else:
-        lines.extend(["Confirmation: child issue type matches.", ""])
-    lines.extend(
-        [
-            "| " + " | ".join(TABLE_HEADERS) + " |",
-            "| " + " | ".join("---" for _ in TABLE_HEADERS) + " |",
-        ]
-    )
-    for row in visible:
-        lines.append(
-            "| "
-            + " | ".join(_cell(value) for value in _tracking_row_cells(row, updated))
-            + " |"
-        )
+    lines.append(_html_tracking_table(report, omit_settled, updated, base))
     created = [row for row in visible if row.action == "created"]
     lines.extend(["", "## Created", ""])
     if not created:
@@ -2057,12 +2190,11 @@ def main(
     except TrackerError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1
-    run_url = optional_run_url(environ)
     markdown = render_markdown(
         report,
         omit_settled=args.command == "summary",
         updated=moment,
-        run_url=run_url,
+        jira_base=jira_base_url(environ),
     )
     text = render_json(report) if output_format == "json" else markdown
     if output_format == "json":
@@ -2070,7 +2202,12 @@ def main(
     else:
         sys.stdout.write(markdown)
     write_step_summary(
-        render_markdown(report, omit_settled=True, updated=moment, run_url=run_url),
+        render_markdown(
+            report,
+            omit_settled=True,
+            updated=moment,
+            jira_base=jira_base_url(environ),
+        ),
         environ,
     )
     if args.output:
