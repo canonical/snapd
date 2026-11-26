@@ -1017,6 +1017,91 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [])
 
+    def test_dispatched_summary_creates_and_notifies_at_the_sync_point(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        report = run(
+            client,
+            command="summary",
+            env=environment(GITHUB_EVENT_NAME="workflow_dispatch"),
+        )
+        self.assertEqual(report.mode, "summary")
+        self.assertEqual(report.advisories[0].action, "created")
+        self.assertEqual(len(created_fields(client)), 1)
+        self.assertEqual(len(mattermost_texts(client)), 1)
+
+    def test_scheduled_summary_create_without_notify_does_not_post(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        report = run(
+            client,
+            command="summary",
+            env=environment(
+                GITHUB_EVENT_NAME="schedule",
+                ADVISORY_TRACKER_NOTIFY="false",
+            ),
+        )
+        self.assertEqual(report.advisories[0].action, "created")
+        self.assertEqual(len(created_fields(client)), 1)
+        self.assertEqual(mattermost_texts(client), [])
+        self.assertIn("notify disabled", report.advisories[0].notifications)
+        self.assertNotEqual(client.parent_issue["fields"]["description"], original)
+        self.assertTrue(
+            any("description" in fields for _key, fields in client.edits)
+        )
+
+    def test_scheduled_summary_notify_without_create_does_not_write_jira(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        report = run(
+            client,
+            command="summary",
+            env=environment(
+                GITHUB_EVENT_NAME="schedule",
+                ADVISORY_TRACKER_CREATE="false",
+                ADVISORY_TRACKER_NOTIFY="true",
+            ),
+        )
+        self.assertEqual(report.advisories[0].action, "untracked")
+        self.assertEqual(created_fields(client), [])
+        self.assertEqual(mattermost_texts(client), [])
+        self.assertEqual(client.parent_issue["fields"]["description"], original)
+        self.assertFalse(
+            any("description" in fields for _key, fields in client.edits)
+        )
+
+    def test_scheduled_summary_without_permissions_does_not_write(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        report = run(
+            client,
+            command="summary",
+            env=environment(
+                GITHUB_EVENT_NAME="schedule",
+                ADVISORY_TRACKER_CREATE="false",
+                ADVISORY_TRACKER_NOTIFY="false",
+            ),
+        )
+        self.assertEqual(report.advisories[0].action, "untracked")
+        self.assertEqual(created_fields(client), [])
+        self.assertEqual(mattermost_texts(client), [])
+        self.assertEqual(client.parent_issue["fields"]["description"], original)
+        self.assertFalse(
+            any("description" in fields for _key, fields in client.edits)
+        )
+
     def test_summary_omits_settled_advisories_without_an_error(self):
         published = sample_advisory(EMBER, "done (Ember Falcon)", state="published")
         triage = sample_advisory(WILLOW, "open (Quiet Willow)")
@@ -1087,58 +1172,6 @@ class AdvisoryTrackerTests(unittest.TestCase):
             "notify disabled not_created", report.advisories[0].notifications
         )
         self.assertEqual(mattermost_texts(client), [])
-
-    def test_resolve_mode_uses_create_and_notify_only(self):
-        self.assertEqual(
-            tracker.resolve_mode(
-                {"GITHUB_EVENT_NAME": "schedule", "ADVISORY_TRACKER_CREATE": "true"}
-            ),
-            "apply",
-        )
-        self.assertEqual(
-            tracker.resolve_mode({"GITHUB_EVENT_NAME": "schedule"}),
-            "skip",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "workflow_dispatch",
-                    "INPUT_ACTION": "sync",
-                    "INPUT_DRY_RUN": "true",
-                    "INPUT_APPLY": "true",
-                }
-            ),
-            "dry-run",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "workflow_dispatch",
-                    "INPUT_ACTION": "summary",
-                    "INPUT_DRY_RUN": "true",
-                }
-            ),
-            "summary-dry-run",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "repository_dispatch",
-                    "PAYLOAD_ACTION": "summary",
-                    "PAYLOAD_DRY_RUN": "true",
-                }
-            ),
-            "summary-dry-run",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "workflow_dispatch",
-                    "INPUT_ACTION": "summary",
-                }
-            ),
-            "summary",
-        )
 
     def test_summary_dry_run_leaves_the_parent_description(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
