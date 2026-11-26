@@ -10,6 +10,8 @@ description: >-
   with `fix-encryption-support` actions until `support` is `available`,
   then generate and save a new recovery key with the
   'generate-recovery-key' action. Restarting snapd between these steps loses the required state and will cause this action to fail. In that case, the sequence must be restarted from `GET /v2/systems?running=true`.
+  This action does not enroll a PIN or passphrase. If
+  `storage-encryption.requirements` (from `GET /v2/systems?running=true`) includes `volumes-auth`, a PIN or passphrase must be enrolled afterwards using the `replace-platform-key` action on `POST /v2/system-volumes`.
 required:
   - action
 properties:
