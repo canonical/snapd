@@ -1006,6 +1006,8 @@ def _html_tracking_table(
         _html_row(_tracking_row_cells(row, now, jira_base))
         for row in ranked_advisories(report, omit_settled)
     ]
+    if not body:
+        body = [_html_row(_empty_table_row())]
     return (
         "<table>\n<thead>\n"
         + "\n".join(rows)

@@ -1238,6 +1238,15 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertIn("omitted_advisories", text)
         self.assertNotIn('"mode"', text)
 
+    def test_empty_summary_table_shows_placeholder(self):
+        published = sample_advisory(EMBER, "done (Ember Falcon)", state="published")
+        client = FakeClient([published], [anchor()])
+        report = run(client, command="summary")
+        markdown = tracker.render_markdown(report, omit_settled=True, updated=NOW)
+        self.assertIn("No open advisories", markdown)
+        table = tracker.tracking_section(report, NOW, None)[2]
+        self.assertEqual(adf_row_texts(table["content"][2])[-1], "No open advisories")
+
     def test_summary_table_includes_priority_and_age(self):
         advisory = sample_advisory(EMBER, "open (Ember Falcon)")
         client = FakeClient([advisory], [anchor()])
