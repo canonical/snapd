@@ -66,6 +66,9 @@ GITHUB_TIMEOUT_SECONDS = 60
 ADVISORY_LIMIT = 2000
 AUTOMATION_MARK = "advisory-tracker:"
 TRACKING_HEADING = "Tracking table"
+MATTERMOST_PREVIEW_BLOCKER = "[](mailto:advisory-tracker)"
+SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+TABLE_HEADERS = ["Advisory", "Priority", "Age", "State", "Ticket", "Status", "Result"]
 CHANNELS = ("mattermost",)
 BUG_LINK_FIELD_NAME = "Bug Link"
 BUG_LINK_FIELD_ENV = "JIRA_BUG_LINK_FIELD"
@@ -183,6 +186,8 @@ class AdvisoryRow:
     codename: str | None
     state: str
     severity: str
+    priority: str
+    created: datetime | None
     ready: bool
     reasons: list[str]
     action: str
@@ -832,22 +837,26 @@ def optional_run_url(env: Mapping[str, str]) -> str | None:
         return None
 
 
-def _tracking_rows(report: Report) -> list[list[str]]:
-    rows = [["Advisory", "State", "Ticket", "Status", "Result"]]
-    for row in displayed_advisories(report, omit_settled=True):
-        if row.issue_keys:
-            tickets = ", ".join(row.issue_keys)
-        else:
-            tickets = row.issue_key or ""
-        rows.append(
-            [
-                _advisory_cell(row),
-                row.state,
-                tickets,
-                row.issue_status or "",
-                _result_cell(row),
-            ]
-        )
+def _tracking_row_cells(row: AdvisoryRow, now: datetime | None) -> list[str]:
+    if row.issue_keys:
+        tickets = ", ".join(row.issue_keys)
+    else:
+        tickets = row.issue_key or ""
+    return [
+        _advisory_cell(row),
+        row.priority,
+        _age_cell(row, now),
+        row.state,
+        tickets,
+        row.issue_status or "",
+        _result_cell(row),
+    ]
+
+
+def _tracking_rows(report: Report, now: datetime | None) -> list[list[str]]:
+    rows = [list(TABLE_HEADERS)]
+    for row in ranked_advisories(report, omit_settled=True):
+        rows.append(_tracking_row_cells(row, now))
     return rows
 
 
@@ -859,14 +868,14 @@ def tracking_section(
         updated = _adf_paragraph(
             [
                 _adf_text(f"Last updated {stamp}. "),
-                _adf_link("Actions run", run_url),
+                _adf_link("Run summary", run_url),
             ]
         )
     else:
         updated = _adf_paragraph([_adf_text(f"Last updated {stamp}.")])
-    table_rows = _tracking_rows(report)
+    table_rows = _tracking_rows(report, moment)
     if len(table_rows) == 1:
-        table_rows.append(["-", "-", "-", "-", "No open advisories"])
+        table_rows.append(["-", "-", "-", "-", "-", "-", "No open advisories"])
     table = {
         "type": "table",
         "attrs": {"isNumberColumnEnabled": False, "layout": "default"},
@@ -1039,6 +1048,56 @@ def jira_priority(config: Config, severity: str) -> str:
     if fallback:
         return fallback
     return "Medium"
+
+
+def _severity_rank(row: AdvisoryRow) -> int:
+    if row.severity in SEVERITY_RANK:
+        return SEVERITY_RANK[row.severity]
+    return SEVERITY_RANK["medium"]
+
+
+def _table_sort_key(row: AdvisoryRow) -> tuple[int, bool, datetime]:
+    created = row.created or datetime.min.replace(tzinfo=UTC)
+    return (_severity_rank(row), row.created is None, created)
+
+
+def ranked_advisories(report: Report, omit_settled: bool = False) -> list[AdvisoryRow]:
+    return sorted(
+        displayed_advisories(report, omit_settled),
+        key=_table_sort_key,
+    )
+
+
+def advisory_age_days(row: AdvisoryRow, now: datetime) -> int | None:
+    if row.created is None:
+        return None
+    return (now.date() - row.created.date()).days
+
+
+def _age_cell(row: AdvisoryRow, now: datetime | None) -> str:
+    if now is None:
+        return ""
+    days = advisory_age_days(row, now)
+    if days is None:
+        return ""
+    return f"{days}d"
+
+
+def parse_advisory_created(value: Any) -> datetime | None:
+    if not isinstance(value, str) or value.strip() == "":
+        return None
+    try:
+        return parse_time(value)
+    except TrackerError:
+        return None
+
+
+def jira_base_url(env: Mapping[str, str]) -> str:
+    return (env.get("JIRA_BASE_URL") or "https://warthogs.atlassian.net").rstrip("/")
+
+
+def jira_browse_url(env: Mapping[str, str], issue_key: str) -> str:
+    return f"{jira_base_url(env)}/browse/{issue_key}"
 
 
 def create_fields(
@@ -1383,6 +1442,8 @@ def _row_from_advisory(
         codename=accepted_codename(summary) if summary else None,
         state=state,
         severity=severity_text,
+        priority=jira_priority(config, severity_text),
+        created=parse_advisory_created(advisory.get("created_at")),
         ready=not reasons,
         reasons=reasons,
         action="",
@@ -1440,18 +1501,19 @@ def _attach(row: AdvisoryRow, issue: Issue, related: list[Issue]) -> None:
     row.issue_status = issue.status
 
 
-def _quiet_link(url: str) -> str:
-    return f"Link: `{url}`"
-
-
-def created_message(row: AdvisoryRow, issue_key: str) -> str:
+def created_message(row: AdvisoryRow, issue_key: str, env: Mapping[str, str]) -> str:
+    ticket = f"[{issue_key}]({jira_browse_url(env, issue_key)})"
+    if row.url:
+        advisory = f"[{row.ghsa_id}]({row.url})"
+    else:
+        advisory = row.ghsa_id
     return "\n".join(
         [
+            MATTERMOST_PREVIEW_BLOCKER,
             f"## :bug: {AUTOMATION_MARK} new advisory detected",
             "",
-            f"Jira ticket created: {issue_key}",
-            f"GitHub-Advisory: {row.ghsa_id}",
-            _quiet_link(row.url),
+            f"Jira ticket created: {ticket}",
+            f"GitHub-Advisory: {advisory}",
         ]
     )
 
@@ -1470,9 +1532,10 @@ def run_summary_url(env: Mapping[str, str]) -> str:
 def not_created_message(env: Mapping[str, str]) -> str:
     return "\n".join(
         [
+            MATTERMOST_PREVIEW_BLOCKER,
             f"## :exclamation: {AUTOMATION_MARK} a Jira ticket was not created",
             "",
-            _quiet_link(run_summary_url(env)),
+            f"[Run summary]({run_summary_url(env)})",
         ]
     )
 
@@ -1509,7 +1572,7 @@ def _announce_created(
         if "notify disabled" not in row.notifications:
             row.notifications.append("notify disabled")
         return
-    message = created_message(row, issue_key)
+    message = created_message(row, issue_key, tracker.env)
     for channel in tracker.config.notify["created"]:
         if not writes.advisory_tracker_notify:
             row.notifications.append(f"would {channel} created")
@@ -1868,7 +1931,7 @@ def render_markdown(
     if updated is not None:
         stamp = _updated_stamp(updated)
         if run_url:
-            lines.append(f"Last updated {stamp}. [Actions run]({run_url})")
+            lines.append(f"Last updated {stamp}. [Run summary]({run_url})")
         else:
             lines.append(f"Last updated {stamp}.")
         lines.append("")
@@ -1879,7 +1942,7 @@ def render_markdown(
             permission_line(report.permissions),
         ]
     )
-    visible = displayed_advisories(report, omit_settled)
+    visible = ranked_advisories(report, omit_settled)
     if omit_settled:
         hidden = len(report.advisories) - len(visible)
         lines.append(f"Omitting {hidden} published or closed advisories with no error.")
@@ -1890,27 +1953,14 @@ def render_markdown(
         lines.extend(["Confirmation: child issue type matches.", ""])
     lines.extend(
         [
-            "| Advisory | State | Ticket | Status | Result |",
-            "| --- | --- | --- | --- | --- |",
+            "| " + " | ".join(TABLE_HEADERS) + " |",
+            "| " + " | ".join("---" for _ in TABLE_HEADERS) + " |",
         ]
     )
     for row in visible:
-        result = _result_cell(row)
         lines.append(
             "| "
-            + " | ".join(
-                [
-                    _cell(_advisory_cell(row)),
-                    _cell(row.state),
-                    _cell(
-                        ", ".join(row.issue_keys)
-                        if row.issue_keys
-                        else (row.issue_key or "")
-                    ),
-                    _cell(row.issue_status or ""),
-                    _cell(result),
-                ]
-            )
+            + " | ".join(_cell(value) for value in _tracking_row_cells(row, updated))
             + " |"
         )
     created = [row for row in visible if row.action == "created"]
@@ -1943,17 +1993,16 @@ def render_markdown(
 
 def render_json(report: Report) -> str:
     payload = asdict(report)
-    advisories = payload["advisories"]
+    ranked = ranked_advisories(report, omit_settled=report.mode == "summary")
     if report.mode == "summary":
-        advisories = [
-            row
-            for row in advisories
-            if not settled_without_error(row.get("state") or "", row.get("error"))
-        ]
-        payload["omitted_advisories"] = len(report.advisories) - len(advisories)
+        payload["omitted_advisories"] = len(report.advisories) - len(ranked)
+    advisories = [asdict(row) for row in ranked]
     for row in advisories:
         row.pop("summary", None)
         row.pop("cve_id", None)
+        created = row.get("created")
+        if isinstance(created, datetime):
+            row["created"] = created.date().isoformat()
         codename = row.get("codename")
         if not isinstance(codename, str) or not is_public_codename(codename):
             row["codename"] = None
