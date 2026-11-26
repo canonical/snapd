@@ -122,7 +122,7 @@ EOF
 
     # Restart snapd to apply it, where snapd is installed.
     systemctl daemon-reload
-    systemctl restart snapd
+    systemctl restart snapd.service
 }
 
 setup_system_proxy() {
