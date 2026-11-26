@@ -29,8 +29,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -164,7 +164,6 @@ func validateRefreshRateLimit(tr RunTransaction) error {
 	if len(refreshRateLimit) == 0 {
 		return nil
 	}
-
 	if _, err := strutil.ParseByteSize(refreshRateLimit); err != nil {
 		return err
 	}
@@ -196,7 +195,7 @@ func validateRefreshDeltaFormats(tr RunTransaction) error {
 			return fmt.Errorf("duplicate delta format %q in refresh.delta-formats", format)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -224,25 +223,22 @@ func MigrateRefreshDeltaFormats(tr RunTransaction) error {
 	if err := tr.GetMaybe("core", "experimental.snap-delta-format", &flag); err != nil {
 		return err
 	}
+	// Not features.Flag: unset must be distinguished from false and invalid
+	// values must not fail startup.
+	var withSnapDeltaFormat bool
 	switch flag {
 	case true, "true":
-		return tr.Set("core", "refresh.delta-formats", []string{"snap-1-1-xdelta3", "xdelta3"})
+		withSnapDeltaFormat = true
 	case false, "false":
-		return tr.Set("core", "refresh.delta-formats", []string{"xdelta3"})
+		withSnapDeltaFormat = false
 	case nil, "":
 		return nil
 	default:
 		logger.Noticef("cannot migrate invalid experimental.snap-delta-format value %v", flag)
 		return nil
 	}
-}
-
-func earlyRefreshDeltaFormatsFilter(values, early map[string]any) {
-	for _, key := range []string{"refresh.delta-formats", "experimental.snap-delta-format"} {
-		if value, ok := values[key]; ok {
-			early[key] = value
-		}
-	}
+	formats := squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: withSnapDeltaFormat})
+	return tr.Set("core", "refresh.delta-formats", formats)
 }
 
 // handleLegacySnapDeltaFormat migrates a legacy flag toggled at runtime unless

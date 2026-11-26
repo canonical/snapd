@@ -219,45 +219,6 @@ func (s *refreshSuite) TestConfigureRefreshDeltaFormatsIgnoresStoredInvalidValue
 	}
 }
 
-func (s *refreshSuite) TestEarlyRefreshDeltaFormatsLegacyFlag(c *C) {
-	for _, tc := range []struct {
-		flag  any
-		value any
-		want  []string
-		err   string
-	}{
-		{true, nil, []string{"snap-1-1-xdelta3", "xdelta3"}, ""},
-		{true, []string{"xdelta3"}, []string{"xdelta3"}, ""},
-		{nil, []string{"xdelta3"}, []string{"xdelta3"}, ""},
-		{nil, []string{"unknown"}, nil, `unsupported delta format "unknown" in refresh.delta-formats`},
-		{true, []string{"xdelta3", "xdelta3"}, nil, `duplicate delta format "xdelta3" in refresh.delta-formats`},
-		{nil, "xdelta3", nil, ".*cannot unmarshal string.*"},
-	} {
-		s.state.Lock()
-		tr := config.NewTransaction(s.state)
-		s.state.Unlock()
-		values := make(map[string]any)
-		if tc.flag != nil {
-			values["experimental.snap-delta-format"] = tc.flag
-		}
-		if tc.value != nil {
-			values["refresh.delta-formats"] = tc.value
-		}
-		err := configcore.Early(classicDev, configcore.NewRunTransaction(tr, nil), values)
-		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
-			continue
-		}
-		c.Assert(err, IsNil)
-		s.state.Lock()
-		var formats []string
-		err = tr.Get("core", "refresh.delta-formats", &formats)
-		s.state.Unlock()
-		c.Assert(err, IsNil)
-		c.Check(formats, DeepEquals, tc.want)
-	}
-}
-
 func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
