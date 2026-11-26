@@ -49,6 +49,10 @@ post:
     Performs an asynchronous action on the current serial assertion by sending a
     JSON command. The only supported action is `forget`, which causes the
     system to unregister its current serial and prepare for a new one.
+
+    Unless the system is a classic one whose model brand is `generic` or
+    `canonical`, the `device.allow-unregister` system option must be set to
+    `true` first.
   externalDocs:
     description: Read more about offline remodeling on the Ubuntu Core documentation.
     url: https://documentation.ubuntu.com/core/explanation/remodelling/index.html#heading--offline
@@ -82,3 +86,7 @@ post:
       $ref: '../components/responses/Accepted.yaml'
     400:
       $ref: '../components/responses/BadRequest.yaml'
+    409:
+      $ref: '../components/responses/Conflict.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'

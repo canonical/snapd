@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2024 Canonical Ltd
+ * Copyright (C) 2016-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -80,6 +80,7 @@ var (
 	installStepSetupStorageEncryptionChangeKind = swfeats.RegisterChangeKind("install-step-setup-storage-encryption")
 	installStepTargetPreseedChangeKind          = swfeats.RegisterChangeKind("install-step-preseed")
 	reprovisionKind                             = swfeats.RegisterChangeKind("fde-reprovision")
+	unregisterDeviceChangeKind                  = swfeats.RegisterChangeKind("unregister-device")
 )
 
 // findModel returns the device model assertion.
@@ -2870,6 +2871,87 @@ func Reprovision(st *state.State) (*state.Change, error) {
 	chg := st.NewChange(reprovisionKind, fmt.Sprintf("Reprovision security device and encrypted disks"))
 	reprovisionTask := st.NewTask("fde-reprovision", fmt.Sprintf("Reprovision security device and encrypted disks"))
 	chg.AddTask(reprovisionTask)
+
+	return chg, nil
+}
+
+type UnregisterOptions struct {
+	NoRegistrationUntilReboot bool
+}
+
+var ErrUnregisterNotAllowed = errors.New("cannot unregister device unless device.allow-unregister is set to true")
+
+func checkUnregisterAllowed(st *state.State, dev *auth.DeviceState) error {
+	// classic generic and canonical devices could always unregister
+	if release.OnClassic && (dev.Brand == "generic" || dev.Brand == "canonical") {
+		return nil
+	}
+
+	tr := config.NewTransaction(st)
+	var allow any
+	err := tr.GetMaybe("core", "device.allow-unregister", &allow)
+	if err != nil {
+		return err
+	}
+	if allow == true || allow == "true" {
+		return nil
+	}
+
+	return ErrUnregisterNotAllowed
+}
+
+func checkUnregisterConflicts(st *state.State) error {
+	err := snapstate.CheckChangeConflictExclusiveKinds(st, "")
+	if err != nil {
+		return err
+	}
+
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+
+		switch chg.Kind() {
+		case becomeOperationalChangeKind, unregisterDeviceChangeKind:
+			return &snapstate.ChangeConflictError{
+				Message:    fmt.Sprintf("cannot unregister device, %q change in progress", chg.Kind()),
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
+		}
+	}
+
+	return nil
+}
+
+// Unregister creates a change that makes the device forget its serial and
+// device key, plus the additional behavior described by the UnregisterOptions.
+func Unregister(st *state.State, opts *UnregisterOptions) (*state.Change, error) {
+	dev, err := internal.Device(st)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkUnregisterAllowed(st, dev)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkUnregisterConflicts(st)
+	if err != nil {
+		return nil, err
+	}
+
+	forgetSerialAndKey := st.NewTask("forget-serial-and-key", i18n.G("Forget device serial and key"))
+	if opts != nil && opts.NoRegistrationUntilReboot {
+		forgetSerialAndKey.Set("no-registration-until-reboot", true)
+	}
+
+	deleteDeviceKey := st.NewTask("delete-device-key", i18n.G("Delete device key pair"))
+	deleteDeviceKey.WaitFor(forgetSerialAndKey)
+
+	chg := st.NewChange(unregisterDeviceChangeKind, i18n.G("Unregister device"))
+	chg.AddAll(state.NewTaskSet(forgetSerialAndKey, deleteDeviceKey))
 
 	return chg, nil
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -375,7 +375,7 @@ type postSerialData struct {
 	NoRegistrationUntilReboot bool   `json:"no-registration-until-reboot"`
 }
 
-var devicestateDeviceManagerUnregister = (*devicestate.DeviceManager).Unregister
+var devicestateUnregister = devicestate.Unregister
 
 func postSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var postData postSerialData
@@ -399,15 +399,18 @@ func postSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	devmgr := c.d.overlord.DeviceManager()
-
 	unregOpts := &devicestate.UnregisterOptions{
 		NoRegistrationUntilReboot: postData.NoRegistrationUntilReboot,
 	}
-	err := devicestateDeviceManagerUnregister(devmgr, unregOpts)
+	chg, err := devicestateUnregister(st, unregOpts)
+	if errors.Is(err, devicestate.ErrUnregisterNotAllowed) {
+		return BadRequest(err.Error())
+	}
 	if err != nil {
-		return InternalError("forgetting serial failed: %v", err)
+		return errToResponse(err, nil, InternalError, "forgetting serial failed: %v")
 	}
 
-	return SyncResponse(nil)
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, chg.ID())
 }
