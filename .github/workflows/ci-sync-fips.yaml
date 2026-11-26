@@ -63,11 +63,12 @@ jobs:
           fi
 
           # Sort by creation time so the current PR is picked over any historical
-          # closed/merged ones for the same head branch.
-          sync_pr="$(gh pr list --state all --base fips --head sync-master-to-fips \
-            --limit 10 --json number,createdAt --jq 'sort_by(.createdAt) | reverse | .[0].number // empty')"
-          sync_pr_state="$(gh pr list --state all --base fips --head sync-master-to-fips \
-            --limit 10 --json state,createdAt --jq 'sort_by(.createdAt) | reverse | .[0].state // empty')"
+          # closed/merged ones for the same head branch. Emit "number state" and
+          # split it below to avoid a second API call.
+          pr_info="$(gh pr list --state all --base fips --head sync-master-to-fips \
+            --limit 10 --json number,state,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[0] // empty | "\(.number) \(.state)"')"
+          read -r sync_pr sync_pr_state <<<"$pr_info"
 
           # Keep a single comment up to date instead of adding one per run.
           comment_pr() {
