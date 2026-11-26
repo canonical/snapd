@@ -1745,8 +1745,8 @@ def _announce_created(
     writes: Permissions,
 ) -> None:
     if not tracker.permissions.advisory_tracker_notify:
-        if "notify disabled" not in row.notifications:
-            row.notifications.append("notify disabled")
+        if "not notified" not in row.notifications:
+            row.notifications.append("not notified")
         return
     if "mattermost" not in tracker.config.notify.get("created", ()):
         return
@@ -1788,7 +1788,7 @@ def _publish_codename(
         if tracker.permissions.advisory_tracker_create:
             row.notifications.append(f"would rename advisory {name}")
         else:
-            row.notifications.append("create disabled")
+            row.notifications.append("not created")
         return
     updated = summary_with_codename(row.summary, name)
     tracker.update_advisory_summary(row.ghsa_id, updated)
@@ -1839,11 +1839,12 @@ def _finish_not_created(
     except TrackerError as exc:
         message = f"cannot send not-created notice: {exc}"
         report.errors.append(message)
-        row = rows[0]
-        if row.error:
-            row.notifications.append(message)
-        else:
-            row.error = message
+        for row in rows:
+            if row.error:
+                if message not in row.notifications:
+                    row.notifications.append(message)
+            else:
+                row.error = message
         return
     _mark_not_created_notice(rows, "notified")
 
