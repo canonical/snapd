@@ -1745,8 +1745,8 @@ def _announce_created(
     writes: Permissions,
 ) -> None:
     if not tracker.permissions.advisory_tracker_notify:
-        if "notify disabled" not in row.notifications:
-            row.notifications.append("notify disabled")
+        if "not notified" not in row.notifications:
+            row.notifications.append("not notified")
         return
     if "mattermost" not in tracker.config.notify.get("created", ()):
         return
@@ -1788,7 +1788,7 @@ def _publish_codename(
         if tracker.permissions.advisory_tracker_create:
             row.notifications.append(f"would rename advisory {name}")
         else:
-            row.notifications.append("create disabled")
+            row.notifications.append("not renamed")
         return
     updated = summary_with_codename(row.summary, name)
     tracker.update_advisory_summary(row.ghsa_id, updated)
@@ -1799,7 +1799,13 @@ def _publish_codename(
 def _blocked_creation(row: AdvisoryRow, states: Sequence[str]) -> bool:
     if row.state not in states or row.issue_key:
         return False
-    return row.action in {"not_ready", "error", "refused", "create disabled"}
+    return row.action in {"not_ready", "error", "refused", "not created"}
+
+
+def _mark_not_created_notice(rows: Sequence[AdvisoryRow], text: str) -> None:
+    for row in rows:
+        if text not in row.notifications:
+            row.notifications.append(text)
 
 
 def _finish_not_created(
@@ -1819,12 +1825,11 @@ def _finish_not_created(
     channels = tracker.config.notify.get("not_created", ())
     if "mattermost" not in channels:
         return
-    row = rows[0]
     if not tracker.permissions.advisory_tracker_notify:
-        row.notifications.append("notify disabled not created")
+        _mark_not_created_notice(rows, "not notified")
         return
     if dry_run:
-        row.notifications.append("would notify not created")
+        _mark_not_created_notice(rows, "would notify")
         return
     reason = None
     if not tracker.permissions.advisory_tracker_create:
@@ -1834,12 +1839,14 @@ def _finish_not_created(
     except TrackerError as exc:
         message = f"cannot send not-created notice: {exc}"
         report.errors.append(message)
-        if row.error:
-            row.notifications.append(message)
-        else:
-            row.error = message
+        for row in rows:
+            if row.error:
+                if message not in row.notifications:
+                    row.notifications.append(message)
+            else:
+                row.error = message
         return
-    row.notifications.append("notified not created")
+    _mark_not_created_notice(rows, "notified")
 
 
 def _create_missing(
@@ -1871,7 +1878,7 @@ def _create_missing(
         row.action = (
             "would create"
             if tracker.permissions.advisory_tracker_create
-            else "create disabled"
+            else "not created"
         )
         if row.action == "would create":
             _announce_created(tracker, report, row, "new", writes)
