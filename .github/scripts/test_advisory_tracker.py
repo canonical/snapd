@@ -1014,6 +1014,56 @@ class AdvisoryTrackerTests(unittest.TestCase):
         markdown = tracker.render_markdown(report)
         self.assertNotIn("Confirmation:", markdown)
         self.assertIn("cannot confirm issue type: configured Bug", markdown)
+        other = FakeClient([advisory], [task])
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(tracker, "connect_github", return_value=other),
+            patch.object(tracker, "connect_jira", return_value=other),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            code = tracker.main(
+                ["sync", "--config", CONFIG_PATH],
+                env=environment(),
+                client=other,
+                now=NOW,
+            )
+        self.assertEqual(code, 2)
+
+    def test_sync_notify_without_create_skips_confirmation_failure(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        task = jira_issue(
+            "SNAPDENG-10", "Quiet Lantern", "Triage", QUIET, issue_type="Task"
+        )
+        client = FakeClient([advisory], [task])
+        env = environment(
+            ADVISORY_TRACKER_CREATE="false",
+            ADVISORY_TRACKER_NOTIFY="true",
+        )
+        report = run(client, env=env)
+        self.assertIn("does not match child issue type Task", report.confirmation_error)
+        self.assertEqual(report.advisories[0].action, "create disabled")
+        self.assertIsNone(report.advisories[0].error)
+        self.assertEqual(report.errors, [])
+        self.assertEqual(created_fields(client), [])
+        self.assertEqual(mattermost_texts(client), [NOT_CREATED_CREATE_OFF_TEXT])
+        other = FakeClient([advisory], [task])
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(tracker, "connect_github", return_value=other),
+            patch.object(tracker, "connect_jira", return_value=other),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            code = tracker.main(
+                ["sync", "--config", CONFIG_PATH],
+                env=env,
+                client=other,
+                now=NOW,
+            )
+        self.assertEqual(code, 0)
 
     def test_a_matching_child_confirms_a_mixed_set(self):
         config = tracker.load_config(CONFIG_PATH)

@@ -2038,8 +2038,8 @@ def execute(
                 )
             else:
                 report.errors.append(str(exc))
-    creating = command == "sync" or (
-        workflow_summary and tracker.permissions.advisory_tracker_create
+    creating = tracker.permissions.advisory_tracker_create and (
+        command == "sync" or workflow_summary
     )
     if report.confirmation_error and creating:
         if report.confirmation_error not in report.errors:
@@ -2245,7 +2245,10 @@ def main(
         if report.errors or any(row.error for row in report.advisories):
             return 1
         return 0
-    if report.confirmation_error:
+    if (
+        report.confirmation_error
+        and report.permissions.advisory_tracker_create
+    ):
         return 2
     if report.errors or any(row.error for row in report.advisories):
         return 1
