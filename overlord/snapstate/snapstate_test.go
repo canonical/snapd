@@ -12079,6 +12079,72 @@ func (s *snapmgrTestSuite) TestDownloadWithIntegrityData(c *C) {
 	c.Check(snapsup.IntegrityDataDownloadInfos[1].Digest, Equals, "digest2")
 }
 
+func (s *snapmgrTestSuite) TestDownloadWithIntegrityDataDiskSpace(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	downloadDir := c.MkDir()
+
+	var requiredSizes []uint64
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(path, Equals, downloadDir)
+		requiredSizes = append(requiredSizes, sz)
+		return nil
+	})
+	defer restore()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "disk-reservation.size", "1000"), IsNil)
+	tr.Commit()
+
+	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{
+		Channel: "channel-with-integrity-data",
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	// the fake store gives a snap size of 5 and integrity data sizes of 10
+	// and 20
+	c.Check(requiredSizes, DeepEquals, []uint64{1000 + 5 + 10 + 20})
+}
+
+func (s *snapmgrTestSuite) TestTotalInstallSize(c *C) {
+	integrityInfos := []snap.IntegrityDataDownloadInfo{
+		{DownloadInfo: snap.DownloadInfo{Size: 10}},
+		{DownloadInfo: snap.DownloadInfo{Size: 20}},
+	}
+
+	for _, tc := range []struct {
+		dlInfo         *snap.DownloadInfo
+		integrityInfos []snap.IntegrityDataDownloadInfo
+		expected       int64
+	}{
+		{&snap.DownloadInfo{Size: 5}, nil, 5},
+		{&snap.DownloadInfo{Size: 5}, integrityInfos[:1], 15},
+		// all integrity data variants are accounted for
+		{&snap.DownloadInfo{Size: 5}, integrityInfos, 35},
+		{&snap.DownloadInfo{}, nil, 0},
+		{nil, nil, 0},
+	} {
+		cmt := Commentf("download info: %+v, integrity infos: %+v", tc.dlInfo, tc.integrityInfos)
+
+		rc := &snapstate.RefreshCandidate{SnapSetup: snapstate.SnapSetup{
+			DownloadInfo:               tc.dlInfo,
+			IntegrityDataDownloadInfos: tc.integrityInfos,
+		}}
+		c.Check(rc.TotalInstallSize(), Equals, tc.expected, cmt)
+
+		// installSnapInfo always carries a download info
+		if tc.dlInfo == nil {
+			continue
+		}
+		info := &snap.Info{
+			DownloadInfo:               *tc.dlInfo,
+			IntegrityDataDownloadInfos: tc.integrityInfos,
+		}
+		c.Check(snapstate.InstallSnapInfo{Info: info}.TotalInstallSize(), Equals, tc.expected, cmt)
+	}
+}
+
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

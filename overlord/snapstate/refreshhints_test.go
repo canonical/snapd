@@ -345,7 +345,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand1.InstanceName().String(), Equals, "some-snap")
 	c.Check(cand1.SnapBase(), Equals, "some-base")
 	c.Check(cand1.Type(), Equals, snap.TypeApp)
-	c.Check(cand1.DownloadSize(), Equals, int64(99))
+	c.Check(cand1.TotalInstallSize(), Equals, int64(99))
 	c.Check(cand1.Version, Equals, "2")
 
 	cand2 := candidates["other-snap"]
@@ -353,7 +353,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand2.InstanceName().String(), Equals, "other-snap")
 	c.Check(cand2.SnapBase(), Equals, "")
 	c.Check(cand2.Type(), Equals, snap.TypeApp)
-	c.Check(cand2.DownloadSize(), Equals, int64(88))
+	c.Check(cand2.TotalInstallSize(), Equals, int64(88))
 	c.Check(cand2.Version, Equals, "v1")
 	c.Check(cand2.Components, HasLen, 1)
 	c.Check(cand2.Components[0].CompSideInfo.Component, Equals, naming.NewComponentRef("other-snap", "comp1"))

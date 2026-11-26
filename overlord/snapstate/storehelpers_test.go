@@ -125,6 +125,10 @@ type installSizeTestStore struct {
 	// operations can be done while the lock is unlocked when interfacing with
 	// the store. Ignored if nil.
 	blockSnapAction <-chan struct{}
+
+	// integrityDataSizes maps snap names to the size of the integrity data
+	// that the store returns for them. Ignored if nil.
+	integrityDataSizes map[string]int64
 }
 
 func (f installSizeTestStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
@@ -163,6 +167,11 @@ func (f installSizeTestStore) SnapAction(ctx context.Context, currentSnaps []*st
 		}
 		if sr.Info.InstanceName().String() == "snap-content-slot-other" {
 			sr.Info.Base = "some-other-base"
+		}
+		if sz, ok := f.integrityDataSizes[sr.Info.InstanceName().String()]; ok {
+			sr.Info.IntegrityDataDownloadInfos = []snap.IntegrityDataDownloadInfo{{
+				DownloadInfo: snap.DownloadInfo{Size: sz},
+			}}
 		}
 	}
 	return sars, nil, nil
@@ -208,6 +217,53 @@ func (s *snapmgrTestSuite) TestInstallSizeSimple(c *C) {
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size))
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeWithIntegrityData(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// use sizes that do not overlap with the snap sizes so that the sum
+	// shows which ones were included
+	const (
+		snap1IntegritySize    = 2 * snap1Size
+		snap2IntegritySize    = 2 * snap2Size
+		someBaseIntegritySize = 2 * someBaseSize
+	)
+
+	snapstate.ReplaceStore(st, installSizeTestStore{
+		fakeStore: s.fakeStore,
+		integrityDataSizes: map[string]int64{
+			"some-base": someBaseIntegritySize,
+		},
+	})
+
+	snap1 := snaptest.MockSnap(c, snapYamlWithBase1, &snap.SideInfo{
+		RealName: "some-snap1",
+		Revision: snap.R(1),
+	})
+	snap1.Size = snap1Size
+	snap1.IntegrityDataDownloadInfos = []snap.IntegrityDataDownloadInfo{{
+		DownloadInfo: snap.DownloadInfo{Size: snap1IntegritySize},
+	}}
+	snap2 := snaptest.MockSnap(c, snapYamlWithBase2, &snap.SideInfo{
+		RealName: "some-snap2",
+		Revision: snap.R(2),
+	})
+	snap2.Size = snap2Size
+	snap2.IntegrityDataDownloadInfos = []snap.IntegrityDataDownloadInfo{{
+		DownloadInfo: snap.DownloadInfo{Size: snap2IntegritySize},
+	}}
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.InstallSnapInfo{Info: snap1},
+		snapstate.InstallSnapInfo{Info: snap2}}, 0, nil)
+	c.Assert(err, IsNil)
+	// the integrity data of both the snaps and their prerequisites is included
+	c.Check(sz, Equals, uint64(snap1Size+snap1IntegritySize+
+		snap2Size+snap2IntegritySize+
+		someBaseSize+someBaseIntegritySize))
 }
 
 func (s *snapmgrTestSuite) TestInstallSizeIncludesInstalledOlderRevision(c *C) {

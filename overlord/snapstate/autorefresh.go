@@ -106,9 +106,10 @@ func (rc *refreshCandidate) SnapBase() string {
 	return rc.SnapSetup.Base
 }
 
-func (rc *refreshCandidate) DownloadSize() int64 {
-	// XXX: should this add the integrity data size as well?
-	return rc.DownloadInfo.Size
+// TotalInstallSize returns the total size of the snap blob and its associated
+// integrity data.
+func (rc *refreshCandidate) TotalInstallSize() int64 {
+	return snapTotalInstallSize(rc.DownloadInfo, rc.IntegrityDataDownloadInfos)
 }
 
 func (rc *refreshCandidate) InstanceName() naming.InstanceName {
