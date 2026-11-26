@@ -1228,6 +1228,46 @@ class AdvisoryTrackerTests(unittest.TestCase):
             any("description" in fields for _key, fields in client.edits)
         )
 
+    def test_scheduled_summary_notify_without_create_skips_confirmation_failure(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        task = jira_issue(
+            "SNAPDENG-10", "Quiet Lantern", "Triage", QUIET, issue_type="Task"
+        )
+        client = FakeClient([advisory], [task])
+        env = environment(
+            GITHUB_EVENT_NAME="schedule",
+            ADVISORY_TRACKER_CREATE="false",
+            ADVISORY_TRACKER_NOTIFY="true",
+        )
+        report = run(client, command="summary", env=env)
+        self.assertIn("does not match child issue type Task", report.confirmation_error)
+        self.assertEqual(report.advisories[0].action, "create disabled")
+        self.assertIsNone(report.advisories[0].error)
+        self.assertEqual(report.errors, [])
+        self.assertEqual(created_fields(client), [])
+        self.assertEqual(mattermost_texts(client), [NOT_CREATED_CREATE_OFF_TEXT])
+        self.assertIn(
+            "Confirmation: cannot confirm issue type: configured Bug "
+            "does not match child issue type Task",
+            tracker.render_markdown(report),
+        )
+        other = FakeClient([advisory], [task])
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(tracker, "connect_github", return_value=other),
+            patch.object(tracker, "connect_jira", return_value=other),
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            code = tracker.main(
+                ["summary", "--config", CONFIG_PATH],
+                env=env,
+                client=other,
+                now=NOW,
+            )
+        self.assertEqual(code, 0)
+
     def test_scheduled_summary_without_permissions_does_not_write(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
         client = FakeClient([advisory], [anchor()])

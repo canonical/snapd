@@ -1860,7 +1860,10 @@ def _create_missing(
     if mode == "summary" and not workflow_event(tracker.env):
         row.action = "untracked"
         return None
-    if report.confirmation_error:
+    if (
+        report.confirmation_error
+        and tracker.permissions.advisory_tracker_create
+    ):
         row.action = "refused"
         row.error = report.confirmation_error
         return None
