@@ -1748,22 +1748,23 @@ def _announce_created(
         if "notify disabled" not in row.notifications:
             row.notifications.append("notify disabled")
         return
+    if "mattermost" not in tracker.config.notify.get("created", ()):
+        return
+    if not writes.advisory_tracker_notify:
+        row.notifications.append("would notify")
+        return
     message = created_message(row, issue_key, tracker.env)
-    for _channel in tracker.config.notify["created"]:
-        if not writes.advisory_tracker_notify:
-            row.notifications.append("would notify")
-            continue
-        try:
-            _post_mattermost(tracker, message)
-        except TrackerError as exc:
-            if exc.status in {401, 403}:
-                raise
-            message_error = f"{row.ghsa_id}: {exc}"
-            row.error = str(exc)
-            if message_error not in report.errors:
-                report.errors.append(message_error)
-            continue
-        row.notifications.append("notified")
+    try:
+        _post_mattermost(tracker, message)
+    except TrackerError as exc:
+        if exc.status in {401, 403}:
+            raise
+        message_error = f"{row.ghsa_id}: {exc}"
+        row.error = str(exc)
+        if message_error not in report.errors:
+            report.errors.append(message_error)
+        return
+    row.notifications.append("notified")
 
 
 def _publish_codename(
