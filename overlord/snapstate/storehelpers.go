@@ -390,7 +390,7 @@ func collectCurrentSnaps(snapStates map[naming.InstanceName]*SnapState, holds ma
 // context, which means there is no effective update and those snaps need to be
 // retried.
 // A second request is sent for eligible snaps that might have been throttled
-// with the RevisionOptions.Scheduled option turned off.
+// with the RefreshOptions.Scheduled option turned off.
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
@@ -448,6 +448,16 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[naming.I
 	return plan, nil
 }
 
+// detectThrottledUpdatesToRetry checks the refresh-candidates left over from
+// a previous refresh-hints query against the update plan of the scheduled
+// auto-refresh, and returns the updates to retry with the RefreshOptions
+// Scheduled option set to false, so that the store does not defer them. It
+// is only called for scheduled auto-refreshes. For auto-refreshes, updates
+// should only be retried for "monitored" snaps, which are snaps for which
+// snapd has already pre-downloaded the update and now has a goroutine waiting
+// for its apps to close so it can complete the refresh. Snapd retries the
+// store request with Scheduled set to false so that it gets a result
+// consistent with the previous requests which pre-downloaded the update.
 func detectThrottledUpdatesToRetry(st *state.State, requested map[naming.InstanceName]StoreUpdate, plan updatePlan) (retry map[naming.InstanceName]StoreUpdate, err error) {
 	var oldHints map[naming.InstanceName]*refreshCandidate
 	if err := st.Get("refresh-candidates", &oldHints); err != nil {
@@ -465,14 +475,14 @@ func detectThrottledUpdatesToRetry(st *state.State, requested map[naming.Instanc
 	}
 
 	retry = make(map[naming.InstanceName]StoreUpdate)
-	var throttledNotRetried []string
+	var deferredNotRetried []string
 	for name, hint := range oldHints {
 		if !hint.Monitored {
-			// For non-monitored snaps, detect if the store throttled the
+			// For non-monitored snaps, detect if the store deferred the
 			// refresh by checking whether the snap still has a pending
-			// update. The store may throttle scheduled auto-refreshes by
+			// update. The store may defer scheduled auto-refreshes by
 			// returning the current revision or omitting the snap
-			// entirely, so we need to distinguish throttling from the snap
+			// entirely, so we need to distinguish this from the snap
 			// having already been refreshed or removed.
 			var snapst SnapState
 			if err := Get(st, name.String(), &snapst); err != nil {
@@ -487,38 +497,31 @@ func detectThrottledUpdatesToRetry(st *state.State, requested map[naming.Instanc
 				continue
 			}
 			// If the snap was already refreshed to the target revision that
-			// the hints query reported, it is up-to-date, not throttled.
+			// the hints query reported, it is up-to-date, not deferred.
 			if snapst.Current == hint.Revision() {
 				continue
 			}
-			// If the store returned a new revision in the scheduled query, the
-			// snap has an update and was not throttled.
-			if update, ok := targetByName[name]; ok {
-				satisfied, err := areRevisionsSatisfied(&update.snapst, update.info.Revision, update.components)
-				if err != nil {
-					return nil, err
-				}
-				if !satisfied {
-					continue
-				}
-			}
-			// The snap has a pending update but the store did not return it
-			// during the scheduled auto-refresh => it was throttled.
-			throttledNotRetried = append(throttledNotRetried, name.String())
-			continue
 		}
 
+		// If the store returned a new revision in the scheduled query, the
+		// snap has an update and was not deferred. Otherwise the store
+		// either returned the current revision or omitted the snap, which
+		// we treat as the store deferring the refresh.
 		if update, ok := targetByName[name]; ok {
-			// if we are monitoring the snap for refresh and get back the same
-			// revision from the store, treat it as throttled and retry
 			satisfied, err := areRevisionsSatisfied(&update.snapst, update.info.Revision, update.components)
 			if err != nil {
 				return nil, err
 			}
-
 			if !satisfied {
 				continue
 			}
+		}
+
+		if !hint.Monitored {
+			// The snap has a pending update but the store did not return it
+			// during the scheduled auto-refresh => it was deferred.
+			deferredNotRetried = append(deferredNotRetried, name.String())
+			continue
 		}
 
 		req, ok := requested[name]
@@ -532,9 +535,9 @@ func detectThrottledUpdatesToRetry(st *state.State, requested map[naming.Instanc
 		retry[name] = req
 	}
 
-	if len(throttledNotRetried) > 0 {
-		sort.Strings(throttledNotRetried)
-		logger.Noticef("auto-refresh: snaps with available updates deferred by the store: %s", strutil.Quoted(throttledNotRetried))
+	if len(deferredNotRetried) > 0 {
+		sort.Strings(deferredNotRetried)
+		logger.Noticef("auto-refresh: snaps with available updates deferred by the store: %s", strutil.Quoted(deferredNotRetried))
 	}
 
 	return retry, nil
