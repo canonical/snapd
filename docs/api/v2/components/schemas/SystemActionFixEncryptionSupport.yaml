@@ -4,19 +4,13 @@
 type: object
 title: SystemActionFixEncryptionSupport
 description: >-
-  Payload to apply a corrective action to fix storage encryption support. Action
-  `fix-encryption-support` requires an initial GET request to the same system
-  (`GET /v2/systems/{label}`), which runs the initial pre-install check and creates
-  an in-memory pre-install check context. Each iteration of the `fix-encryption-support`
-  action applies the requested fix and runs a subsequent pre-install check, using
-  that context, so multiple actions can be performed in sequence. Another GET request
-  to the same system (`GET /v2/systems/{label}`) replaces this context and resets the
-  action sequence. The context is also lost if snapd restarts or the system reboots.
+  Payload to apply a corrective action to fix storage encryption support.
+  This action can be performed either pre-install, on `POST
+  /v2/systems/{label}`, or post-install, on `POST /v2/systems`.
 
-  When this action is performed on `POST /v2/systems` (no label, applying to the
-  currently running system), the preceding GET request is `GET
-  /v2/systems?running=true` instead, and the check it runs, and the one run after
-  applying the fix, are post-install checks rather than pre-install ones.
+  Action `fix-encryption-support` requires an initial GET request that
+  creates an in-memory check context: `GET /v2/systems/{label}` for
+  pre-install, or `GET /v2/systems?running=true` for post-install. Each iteration of the `fix-encryption-support` action applies the requested fix and runs a subsequent pre- or post-install check, using that context, so multiple actions can be performed in sequence. Another GET request to the same system replaces this context and resets the action sequence. The context is also lost if snapd restarts or the system reboots.
 required:
   - action
   - fix-action

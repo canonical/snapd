@@ -9,7 +9,7 @@ get:
   summary: Get the list of recovery systems or the running system's details
   description: |-
     Retrieves a list of all available recovery systems on the device. If the
-    'running' query parameter is provided and set to 'true', instead returns
+    'running' query parameter is set to 'true', returns
     the details of the currently running system (equivalent to 'GET
     /v2/systems/{label}' for the running system's label).
   operationId: getSystems
