@@ -639,14 +639,16 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	// Completed metadata must still be readable; its version does not prevent
-	// rebuilding after a snapd downgrade.
+	// Completed metadata is informational here: whether a rebuild due to a
+	// snapd GeneratorVersion change is required should be decided by calling
+	// DriversTreeOutdated, not here. A malformed marker is treated as a stale,
+	// marker-less tree so a rebuild can recover from it.
 	final := driversTreeMetaPath(destDir)
 	var old driversTreeMeta
 	data, err := os.ReadFile(final)
 	if err == nil {
 		if err := json.Unmarshal(data, &old); err != nil {
-			return fmt.Errorf("cannot read kernel drivers tree marker %q: %w", final, err)
+			logger.Noticef("cannot parse kernel drivers tree marker %q, rebuilding: %v", final, err)
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err

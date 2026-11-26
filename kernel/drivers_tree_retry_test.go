@@ -286,13 +286,16 @@ func (s *kernelDriversTestSuite) TestEnsureReconcilesAfterDestinationRelocation(
 	c.Check(link, testutil.SymlinkTargetEquals, filepath.Join(newSource, "firmware", "wifi_fw.bin"))
 }
 
-func (s *kernelDriversTestSuite) TestEnsureIgnoresCorruptPendingButRejectsCorruptFinal(c *C) {
+func (s *kernelDriversTestSuite) TestEnsureRecoversFromCorruptMarkers(c *C) {
 	root := c.MkDir()
 	source := filepath.Join(root, "kernel")
 	createKernelSnapFilesOnlyFw(c, source)
 	mounts := kernel.MountPoints{Current: source, Target: source}
 	dest := filepath.Join(root, "tree")
 	c.Assert(kernel.EnsureKernelDriversTree(mounts, nil, dest), IsNil)
+	link := filepath.Join(dest, "lib", "firmware", "wifi_fw.bin")
+
+	// A corrupt pending marker does not block a re-run either.
 	c.Assert(os.WriteFile(filepath.Join(dest, "kernel.json.pending"), []byte("not json"), 0644), IsNil)
 	outdated, err := kernel.DriversTreeOutdated(dest)
 	c.Assert(err, IsNil)
@@ -300,10 +303,21 @@ func (s *kernelDriversTestSuite) TestEnsureIgnoresCorruptPendingButRejectsCorrup
 	c.Assert(kernel.EnsureKernelDriversTree(mounts, nil, dest), IsNil)
 	c.Check(filepath.Join(dest, "kernel.json.pending"), testutil.FileAbsent)
 
+	// A corrupt final marker is treated as a stale, marker-less tree and
+	// rebuilt; a successful reconciliation replaces it with a fresh marker.
 	final := filepath.Join(dest, "kernel.json")
 	c.Assert(os.WriteFile(final, []byte("not json"), 0644), IsNil)
-	c.Assert(kernel.EnsureKernelDriversTree(mounts, nil, dest), ErrorMatches, `cannot read kernel drivers tree marker .*kernel.json.*`)
-	c.Check(final, testutil.FileEquals, []byte("not json"))
+	c.Assert(os.Remove(link), IsNil)
+	c.Assert(os.Symlink("stale", link), IsNil)
+	outdated, err = kernel.DriversTreeOutdated(dest)
+	c.Assert(err, IsNil)
+	c.Check(outdated, Equals, true)
+	c.Assert(kernel.EnsureKernelDriversTree(mounts, nil, dest), IsNil)
+	c.Check(link, testutil.SymlinkTargetEquals, filepath.Join(source, "firmware", "wifi_fw.bin"))
+	meta, err := kernel.ReadDriversTreeMeta(dest)
+	c.Assert(err, IsNil)
+	c.Check(meta.GeneratorVersion, Equals, kernel.KernelDriversTreeGeneratorVersion())
+	c.Check(filepath.Join(dest, "kernel.json.pending"), testutil.FileAbsent)
 }
 
 func (s *kernelDriversTestSuite) TestEnsureMissingSourcesCannotComplete(c *C) {
