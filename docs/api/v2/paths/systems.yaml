@@ -58,7 +58,8 @@ post:
     authorization. Requests from a snap (over snapd-snap.socket) additionally
     require the 'snap-fde-control' interface to be connected.
   operationId: performSystemAction
-  security: []
+  security:
+    - PeerAuth: []
   requestBody:
     required: true
     content:
