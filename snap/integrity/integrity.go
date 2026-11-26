@@ -85,7 +85,10 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 
 const dmVerityFileSuffix = ".dmverity"
 
-var validHexDigest = regexp.MustCompile(`^[0-9a-f]+$`)
+// validHexDigest matches hex-encoded digests. Both lowercase and uppercase
+// digits are accepted to be consistent with the snap-revision assertion
+// parsing which uses hex.DecodeString and preserves the original spelling.
+var validHexDigest = regexp.MustCompile(`^[0-9a-fA-F]+$`)
 
 func integrityFilePathPrefix(snapPath string) string {
 	return strings.TrimSuffix(snapPath, ".snap") + "_"

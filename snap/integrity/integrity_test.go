@@ -312,7 +312,15 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(integrityFile, Equals, "/path/to/instance_aaa.dmverity")
 
-	for _, digest := range []string{"", "ABCD", "aa/bb", "aa_bb", "../../aa"} {
+	// uppercase and mixed-case hex digests are accepted as-is
+	for _, digest := range []string{"ABCD", "aBcD09"} {
+		idp.Digest = digest
+		path, err := idp.IntegrityFile("/path/to/instance.snap")
+		c.Check(err, IsNil)
+		c.Check(path, Equals, "/path/to/instance_"+digest+".dmverity")
+	}
+
+	for _, digest := range []string{"", "aa/bb", "aa_bb", "../../aa", "xyz"} {
 		idp.Digest = digest
 		path, err := idp.IntegrityFile("/path/to/instance.snap")
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid dm-verity digest %q", digest))
@@ -356,6 +364,9 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 		"foo_1_aaa.dmverity",
 		"foo_1_bbb.dmverity",
 		"foo_1_ccc.dmverity.partial",
+		// uppercase and mixed-case hex digests
+		"foo_1_DDD.dmverity",
+		"foo_1_EeE.dmverity.partial",
 		"foo_10_ccc.dmverity",
 		"bar_1_aaa.dmverity",
 		// not hex-encoded
@@ -376,6 +387,7 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 		{
 			snapPath: filepath.Join(dir, "foo_1.snap"),
 			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
 				filepath.Join(dir, "foo_1_aaa.dmverity"),
 				filepath.Join(dir, "foo_1_bbb.dmverity"),
 			},
@@ -384,6 +396,7 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 			snapPath: filepath.Join(dir, "foo_1.snap"),
 			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: false},
 			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
 				filepath.Join(dir, "foo_1_aaa.dmverity"),
 				filepath.Join(dir, "foo_1_bbb.dmverity"),
 			},
@@ -392,14 +405,17 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 			snapPath: filepath.Join(dir, "foo_1.snap"),
 			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: true},
 			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
 				filepath.Join(dir, "foo_1_aaa.dmverity"),
 				filepath.Join(dir, "foo_1_bbb.dmverity"),
+				filepath.Join(dir, "foo_1_EeE.dmverity.partial"),
 				filepath.Join(dir, "foo_1_ccc.dmverity.partial"),
 			},
 		},
 		{
 			snapPath: filepath.Join(dir, "foo_1"),
 			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
 				filepath.Join(dir, "foo_1_aaa.dmverity"),
 				filepath.Join(dir, "foo_1_bbb.dmverity"),
 			},
