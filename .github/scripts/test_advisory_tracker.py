@@ -1048,7 +1048,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
             any("description" in fields for _key, fields in client.edits)
         )
 
-    def test_summary_is_read_only(self):
+    def test_cli_summary_does_not_create_or_notify(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
         client = FakeClient([advisory], [anchor()])
         report = run(client, command="summary")
