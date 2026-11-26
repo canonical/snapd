@@ -14,96 +14,85 @@ required:
   - preinstall
 properties:
   status:
-    oneOf:
-      - type: string
-        const: active
-        description: >-
-          The system is FDE enabled and operating normally (none of
-          the other states apply).
-      - type: string
-        const: inactive
-        description: >-
-          FDE is not currently active, because TPM-backed FDE was
-          not selected at install time.
-      - type: string
-        const: recovery
-        description: >-
-          A recovery key was provided to unlock one or more storage
-          containers, but the system has not yet been restarted.
-      - type: string
-        const: degraded
-        description: >-
-          The system is unlocked, but another problem was detected.
-      - type: string
-        const: indeterminate
-        description: >-
-          There was an error while detecting the current status. This can
-          also happen in case of a major failure starting snapd.
+    type: string
+    enum:
+      - active
+      - inactive
+      - recovery
+      - degraded
+      - indeterminate
+    description: >-
+      - active: the system is FDE enabled and operating normally (none of the
+      other states apply).
+
+      - inactive: FDE is not currently active, because TPM-backed FDE was not
+      selected at install time.
+
+      - recovery: a recovery key was provided to unlock one or more storage
+      containers, but the system has not yet been restarted.
+
+      - degraded: the system is unlocked, but another problem was detected.
+
+      - indeterminate: there was an error while detecting the current status.
+      This can also happen in case of a major failure starting snapd.
   auto-repair-result:
+    type: string
+    enum:
+      - not-initialized
+      - not-attempted
+      - failed-platform-init
+      - failed-keyslots
+      - failed-encryption-support
+      - success
     description: >-
       The result of the automatic post-recovery repair. Always present in
       this version of the API. Interpretation applies when field 'status' is
       'recovery' or 'degraded'.
-    oneOf:
-      - type: string
-        const: not-initialized
-        description: >-
-          Reported early on snapd boot, until it has checked whether or not
-          to run the repair.
-      - type: string
-        const: not-attempted
-        description: >-
-          Snapd determined that another type of fix is needed, and it will
-          be provided in 'recommendations'.
-      - type: string
-        const: failed-platform-init
-        description: >-
-          An auto-repair was attempted but did not work. 'recommendations'
-          should be followed.
-      - type: string
-        const: failed-keyslots
-        description: >-
-          An auto-repair was attempted but did not work. 'recommendations'
-          should be followed.
-      - type: string
-        const: failed-encryption-support
-        description: >-
-          An auto-repair was attempted but did not work. 'recommendations'
-          should be followed.
-      - type: string
-        const: success
-        description: >-
-          Nothing else needs to be done. If the user booted with a recovery
-          key, the following reboot will not require it (the client might
-          want to recommend a reboot to test it).
+
+      - not-initialized: reported early on snapd boot, until it has checked
+      whether or not to run the repair.
+
+      - not-attempted: snapd determined that another type of fix is needed,
+      and it will be provided in 'recommendations'.
+
+      - failed-platform-init: an auto-repair was attempted but did not work.
+      'recommendations' should be followed.
+
+      - failed-keyslots: an auto-repair was attempted but did not work.
+      'recommendations' should be followed.
+
+      - failed-encryption-support: an auto-repair was attempted but did not
+      work. 'recommendations' should be followed.
+
+      - success: nothing else needs to be done. If the user booted with a
+      recovery key, the following reboot will not require it (the client
+      might want to recommend a reboot to test it).
   recommendations:
     type: array
     description: >-
       A list of identifiers for remedial actions recommended to the system
       administrator to manually repair the FDE setup.
+
+      - permit-manual: in combination with 'require-reprovision', signals
+      that an administrator could potentially fix the system by re-enrolling
+      keys without reprovisioning.
+
+      - require-reprovision: a reprovision is required. However,
+      'permit-manual' in combination with 'require-reprovision' signals that
+      an administrator could potentially fix the system by re-enrolling keys
+      without reprovisioning.
+
+      - require-platform-reset: the TPM needs to be cleared. To clear the TPM
+      and keep the data on the encrypted disk requires knowledge of the
+      recovery key. If 'status' is not 'recovery' (which indicates the user
+      has used a recovery key to boot), then the client has to verify the
+      user knows the recovery key.
     items:
-      oneOf:
-        - type: string
-          const: permit-manual
-          description: >-
-            In combination with 'require-reprovision', signals that an
-            administrator could potentially fix the system by re-enrolling
-            keys without reprovisioning.
-        - type: string
-          const: require-reprovision
-          description: >-
-            A reprovision is required. However, 'permit-manual' in
-            combination with 'require-reprovision' signals that an
-            administrator could potentially fix the system by re-enrolling
-            keys without reprovisioning.
-        - type: string
-          const: require-platform-reset
-          description: >-
-            The TPM needs to be cleared. To clear the TPM and keep the data
-            on the encrypted disk requires knowledge of the recovery key. If
-            'status' is not 'recovery' (which indicates the user has used a
-            recovery key to boot), then the client has to verify the user
-            knows the recovery key.
+      type: string
+      enum:
+        - permit-manual
+        - require-reprovision
+        - require-platform-reset
   preinstall:
     type: object
     description: Information related to decisions made at install time.
