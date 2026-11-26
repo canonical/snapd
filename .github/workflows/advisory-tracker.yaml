@@ -12,9 +12,11 @@ name: advisory tracker
 # applies the petname on the advisory, and replaces the tracking table in
 # the parent issue description. Text above that table stays. When
 # ADVISORY_TRACKER_NOTIFY is the string true, the run posts
-# Mattermost notices. With both unset, the run does not write to Jira or
-# Mattermost. The Actions summary includes the same table, with the time
-# and a link to this run.
+# Mattermost notices. A not-created notice is still posted when CREATE is
+# off and a triage or draft advisory has no ticket. With both unset, the
+# run does not write to Jira or Mattermost. The Actions summary includes
+# the same table. Last updated and a link to this run stay on the Jira
+# parent table.
 #
 # contents: read lets checkout fetch these scripts. The track job also has
 # actions: write for the summary artifact. The token is not used to change
