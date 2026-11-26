@@ -575,6 +575,8 @@ class AdvisoryTrackerTests(unittest.TestCase):
         client = FakeClient([advisory], [anchor()])
         run(client)
         self.assertEqual(created_fields(client)[0]["priority"], {"name": "Highest"})
+        self.assertIn("Severity: critical", mattermost_texts(client)[0])
+        self.assertNotIn("Severity: Highest", mattermost_texts(client)[0])
 
     def test_missing_severity_defaults_to_medium(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)", severity=None)
@@ -585,6 +587,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         markdown = tracker.render_markdown(report)
         self.assertNotIn("<td>Medium</td>", markdown)
         self.assertNotIn("<td>medium</td>", markdown)
+        self.assertNotIn("Severity:", mattermost_texts(client)[0])
 
     def test_unknown_severity_defaults_to_medium(self):
         advisory = sample_advisory(
@@ -966,16 +969,19 @@ class AdvisoryTrackerTests(unittest.TestCase):
             created[0],
         )
         self.assertIn("[](mailto:advisory-tracker)", created[0])
-        self.assertIn(
-            "Jira ticket created: [SNAPDENG-500]"
-            "(https://warthogs.atlassian.net/browse/SNAPDENG-500)",
-            created[0],
-        )
-        self.assertIn(
+        github = (
             f"GitHub-Advisory: [{EMBER}](https://github.com/canonical/snapd"
-            f"/security/advisories/{EMBER})",
-            created[0],
+            f"/security/advisories/{EMBER})"
         )
+        jira = (
+            "Jira ticket created: [SNAPDENG-500]"
+            "(https://warthogs.atlassian.net/browse/SNAPDENG-500)"
+        )
+        self.assertIn("Severity: medium", created[0])
+        self.assertIn(github, created[0])
+        self.assertIn(jira, created[0])
+        self.assertLess(created[0].index("Severity: medium"), created[0].index(github))
+        self.assertLess(created[0].index(github), created[0].index(jira))
         self.assertNotIn("Link:", created[0])
         self.assertEqual(texts.count(NOT_CREATED_TEXT), 2)
         self.assertEqual(len(created_fields(client)), 1)
@@ -1071,7 +1077,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertIn("Each child card tracks one advisory.", text)
         self.assertIn("Last updated 2026-11-12 15:00 UTC.", text)
         self.assertIn("Run summary", text)
-        self.assertIn("Priority", text)
+        self.assertIn("Severity", text)
         self.assertIn("Age", text)
         self.assertIn("11d", text)
         self.assertIn(EMBER, text)
@@ -1247,7 +1253,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         table = tracker.tracking_section(report, NOW, None)[2]
         self.assertEqual(adf_row_texts(table["content"][2])[-1], "No open advisories")
 
-    def test_summary_table_includes_priority_and_age(self):
+    def test_summary_table_includes_severity_and_age(self):
         advisory = sample_advisory(EMBER, "open (Ember Falcon)")
         client = FakeClient([advisory], [anchor()])
         report = run(client, command="summary")
@@ -1267,7 +1273,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
             markdown,
         )
         self.assertIn("<th>Advisory</th>", markdown)
-        self.assertIn("<th>Priority</th>", markdown)
+        self.assertIn("<th>Severity</th>", markdown)
         self.assertIn(
             f'Ember Falcon <a href="{ADVISORIES_URL}/{EMBER}">{EMBER}</a>',
             markdown,
@@ -1281,7 +1287,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(payload["advisories"][0]["severity"], "medium")
         self.assertEqual(payload["advisories"][0]["age"], "11d")
 
-    def test_summary_table_orders_by_priority_then_oldest_age(self):
+    def test_summary_table_orders_by_severity_then_oldest_age(self):
         advisories = [
             sample_advisory(
                 QUIET,

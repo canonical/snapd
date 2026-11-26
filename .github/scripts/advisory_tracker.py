@@ -71,7 +71,7 @@ AUTOMATION_MARK = "advisory-tracker:"
 TRACKING_HEADING = "Tracking table"
 MATTERMOST_PREVIEW_BLOCKER = "[](mailto:advisory-tracker)"
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-TABLE_HEADERS = ["Advisory", "Priority", "Age", "State", "Ticket", "Status", "Result"]
+TABLE_HEADERS = ["Advisory", "Severity", "Age", "State", "Ticket", "Status", "Result"]
 GITHUB_GROUP_SPAN = 4
 JIRA_GROUP_SPAN = 3
 CHANNELS = ("mattermost",)
@@ -898,7 +898,7 @@ def _plain_cell(text: str, *, header: bool = False) -> TableCell:
     return TableCell(lines=((Inline(text),),), header=header)
 
 
-def _priority_cell(row: AdvisoryRow) -> TableCell:
+def _severity_cell(row: AdvisoryRow) -> TableCell:
     if row.severity in SEVERITY_RANK:
         return _plain_cell(row.severity)
     return _plain_cell("")
@@ -927,7 +927,7 @@ def _tracking_row_cells(
 ) -> list[TableCell]:
     return [
         _advisory_table_cell(row),
-        _priority_cell(row),
+        _severity_cell(row),
         _plain_cell(_age_cell(row, now)),
         _plain_cell(row.state),
         _ticket_table_cell(row, jira_base),
@@ -1675,15 +1675,20 @@ def created_message(row: AdvisoryRow, issue_key: str, env: Mapping[str, str]) ->
         advisory = f"[{row.ghsa_id}]({row.url})"
     else:
         advisory = row.ghsa_id
-    return "\n".join(
+    lines = [
+        MATTERMOST_PREVIEW_BLOCKER,
+        f"## :bug: {AUTOMATION_MARK} new advisory detected",
+        "",
+    ]
+    if row.severity in SEVERITY_RANK:
+        lines.append(f"Severity: {row.severity}")
+    lines.extend(
         [
-            MATTERMOST_PREVIEW_BLOCKER,
-            f"## :bug: {AUTOMATION_MARK} new advisory detected",
-            "",
-            f"Jira ticket created: {ticket}",
             f"GitHub-Advisory: {advisory}",
+            f"Jira ticket created: {ticket}",
         ]
     )
+    return "\n".join(lines)
 
 
 def run_summary_url(env: Mapping[str, str]) -> str:
