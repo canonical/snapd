@@ -1012,11 +1012,8 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_TEXT])
         markdown = tracker.render_markdown(report)
-        self.assertIn(
-            "Confirmation: cannot confirm issue type: configured Bug "
-            "does not match child issue type Task",
-            markdown,
-        )
+        self.assertNotIn("Confirmation:", markdown)
+        self.assertIn("cannot confirm issue type: configured Bug", markdown)
 
     def test_a_matching_child_confirms_a_mixed_set(self):
         config = tracker.load_config(CONFIG_PATH)
@@ -1246,11 +1243,9 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(report.errors, [])
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_CREATE_OFF_TEXT])
-        self.assertIn(
-            "Confirmation: cannot confirm issue type: configured Bug "
-            "does not match child issue type Task",
-            tracker.render_markdown(report),
-        )
+        markdown = tracker.render_markdown(report)
+        self.assertNotIn("Confirmation:", markdown)
+        self.assertIn("Permissions:", markdown)
         other = FakeClient([advisory], [task])
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -1321,6 +1316,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertNotIn("Mode:", markdown)
         self.assertNotIn("Parent:", markdown)
         self.assertIn("Permissions:", markdown)
+        self.assertNotIn("Confirmation:", markdown)
         self.assertNotIn("child issue type matches", markdown)
         self.assertNotIn("Last updated", markdown)
         self.assertNotIn("Run summary", markdown)

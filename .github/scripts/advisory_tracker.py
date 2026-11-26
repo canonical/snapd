@@ -2109,8 +2109,6 @@ def render_markdown(
         hidden = len(report.advisories) - len(visible)
         lines.append(f"Omitting {hidden} published or closed advisories with no error.")
     lines.append("")
-    if report.confirmation_error:
-        lines.extend([f"Confirmation: {report.confirmation_error}", ""])
     lines.append(_html_tracking_table(report, omit_settled, updated, base))
     created = [row for row in visible if row.action == "created"]
     lines.extend(["", "## Created", ""])
