@@ -33,5 +33,5 @@ get:
                   - sync
               result:
                 $ref: '../components/schemas/FDEStatus.yaml'
-    4XX:
+    500:
       $ref: '../components/responses/InternalError.yaml'
