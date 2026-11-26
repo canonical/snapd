@@ -45,7 +45,7 @@ get:
 
 post:
   tags:
-    - AuthenticatedAccess
+    - ByActionAccess
     - Systems
     - Asynchronous # Actions like 'create' and 'install' are async
     - Synchronous
@@ -53,10 +53,11 @@ post:
   description: |-
     Perform an action such as 'reboot', 'install', or 'fix-encryption-support'
     on the current active recovery system, or 'create' a new recovery
-    system.
+    system. Actions 'reboot', 'install', and 'create' require root access.
+    Action 'fix-encryption-support' additionally requires the
+    'snap-fde-control' interface or polkit authorization.
   operationId: performSystemAction
-  security:
-    - PeerAuth: [] # TODO This was originally designated as root auth, investigate
+  security: []
   requestBody:
     required: true
     content:
