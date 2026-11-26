@@ -19,7 +19,9 @@ permissions:
 #   resolve conflicts;
 # - commits pushed by humans are never overwritten by the workflow;
 # - a missing head branch, e.g. under auto-delete-on-merge, is recreated
-#   by the workflow and must not stall the sync.
+#   by the workflow and must not stall the sync. A recreated branch is
+#   built as a proper sync (merge master into fips with the snapcraft
+#   override), never as a plain copy of master.
 # For an existing sync PR:
 # - approved: leave the PR alone, keep a pinned comment with the list of
 #   commits waiting on master;
@@ -75,6 +77,54 @@ jobs:
             gh pr comment "$sync_pr" --edit-last --create-if-none --body "$1"
           }
 
+          # Build a proper sync: merge master into fips, use master's
+          # snapcraft-fips.yaml as the merged snapcraft.yaml, push the result to
+          # the head branch, and update the PR. On a clean merge the PR is marked
+          # ready; on conflicts the branch is reset to master and the PR is made a
+          # draft with the conflict list (or a fresh draft PR is opened if there
+          # is none).
+          build_and_push_sync() {
+            git switch --detach "$fips_sha"
+            if ! git merge --no-ff --no-commit origin/master; then
+              git rev-parse --verify MERGE_HEAD >/dev/null
+            fi
+            git show origin/master:build-aux/snap/local/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
+            git add build-aux/snap/snapcraft.yaml
+
+            if [[ -n "$(git ls-files -u)" ]]; then
+              conflicts="$(git diff --name-only --diff-filter=U)"
+              git push --force-with-lease origin origin/master:refs/heads/sync-master-to-fips
+              if [[ -n "$sync_pr" ]]; then
+                if [[ "$(gh pr view "$sync_pr" --json isDraft --jq '.isDraft')" == false ]]; then
+                  gh pr ready "$sync_pr" --undo
+                fi
+                comment_pr "The automated merge faced conflicts on master, so the branch was reset to master and the PR marked as a draft. Resolve these files, push, and mark the PR ready for review:
+
+          $conflicts"
+              else
+                gh pr create --draft --base fips --head sync-master-to-fips \
+                  --title "chore: Synchronize fips with master" \
+                  --body "The automated merge failed (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}). Unresolved files:
+
+          $conflicts
+
+          This branch starts at master. Merge the latest fips and master into it, resolve the conflicts, and copy build-aux/snap/local/snapcraft-fips.yaml from master to build-aux/snap/snapcraft.yaml. Push the result and mark this PR ready for review. Merge using 'Create a merge commit'."
+              fi
+            else
+              git commit -m "Merge master into fips, using snapcraft-fips.yaml"
+              git push --force-with-lease origin HEAD:refs/heads/sync-master-to-fips
+              if [[ -n "$sync_pr" ]]; then
+                if [[ "$(gh pr view "$sync_pr" --json isDraft --jq '.isDraft')" == true ]]; then
+                  gh pr ready "$sync_pr"
+                fi
+              else
+                gh pr create --base fips --head sync-master-to-fips \
+                  --title "chore: Synchronize fips with master" \
+                  --body 'Synchronize fips with master, using snapcraft-fips.yaml from master as snapcraft.yaml. Merge using "Create a merge commit".'
+              fi
+            fi
+          }
+
           # The sync-master-to-fips branch is created and updated only by this
           # workflow. Humans must not create it, but they may push commits to it
           # to resolve conflicts while its PR is open. The branch can also be
@@ -89,15 +139,20 @@ jobs:
             ;;
           CLOSED)
             # A fresh PR for a branch that already had one closed is refused, so
-            # reuse it; otherwise the sync would stop without anyone noticing.
-            # GitHub cannot reopen a PR whose head branch is gone, recreate it
-            # first; the branch content is replaced below anyway.
+            # reuse it. GitHub cannot reopen a PR whose head branch is gone, so
+            # recreate it first, then rebuild it as a proper sync.
             if [[ -z "$branch_sha" ]]; then
               git push origin origin/master:refs/heads/sync-master-to-fips
               branch_sha="$(git rev-parse origin/master)"
+              branch_missing=true
             fi
             gh pr reopen "$sync_pr"
             comment_pr "This PR was closed while master still needed synchronizing, so the workflow reopened it. Disable or edit the workflow to stop the sync."
+            if [[ "$branch_missing" == true ]]; then
+              build_and_push_sync
+              # the rebuilt branch always contains master, nothing left to do
+              exit 0
+            fi
             ;;
           esac
 
@@ -128,13 +183,21 @@ jobs:
 
           if [[ -n "$sync_pr" ]]; then
             # An approved PR is left alone so that it can still land, the commits
-            # it is missing are picked up by the next synchronization.
+            # it is missing are picked up by the next synchronization. If its head
+            # branch was deleted it can never merge, so rebuild it as a proper sync
+            # first, then leave it approved.
             if [[ "$(gh pr view "$sync_pr" --json reviewDecision --jq '.reviewDecision // ""')" == APPROVED ]]; then
-              # An approved PR is left alone so that it can still land; a deleted
-              # head branch would keep it from ever merging, so recreate it first.
               if [[ -z "$branch_sha" ]]; then
-                git push origin origin/master:refs/heads/sync-master-to-fips
-                branch_sha="$(git rev-parse origin/master)"
+                # A deleted head branch cannot merge, so rebuild it as a proper
+                # sync before letting the approved PR land. On conflicts the
+                # helper resets the branch to master and marks the PR draft.
+                build_and_push_sync
+                branch_sha="$(git rev-parse --verify --quiet origin/sync-master-to-fips || true)"
+                if [[ -z "$branch_sha" ]]; then
+                  exit 0
+                fi
+                comment_pr "The head branch was gone, so the workflow rebuilt it from the latest master before leaving this approved PR to land."
+                exit 0
               fi
               total="$(git rev-list --count origin/sync-master-to-fips..origin/master)"
               new_commits="$(git log --oneline -30 origin/sync-master-to-fips..origin/master)"
@@ -147,46 +210,6 @@ jobs:
           $new_commits"
               exit 0
             fi
-
-            is_draft="$(gh pr view "$sync_pr" --json isDraft --jq '.isDraft')"
           fi
 
-          git switch --detach "$fips_sha"
-          if ! git merge --no-ff --no-commit origin/master; then
-            git rev-parse --verify MERGE_HEAD >/dev/null
-          fi
-          git show origin/master:build-aux/snap/local/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
-          git add build-aux/snap/snapcraft.yaml
-
-          if [[ -n "$(git ls-files -u)" ]]; then
-            conflicts="$(git diff --name-only --diff-filter=U)"
-            git push --force-with-lease origin origin/master:refs/heads/sync-master-to-fips
-            if [[ -n "$sync_pr" ]]; then
-              if [[ "$is_draft" == false ]]; then
-                gh pr ready "$sync_pr" --undo
-              fi
-              comment_pr "The automated merge faced conflicts on master, so the branch was reset to master and the PR marked as a draft. Resolve these files, push, and mark the PR ready for review:
-
-          $conflicts"
-            else
-              gh pr create --draft --base fips --head sync-master-to-fips \
-                --title "chore: Synchronize fips with master" \
-                --body "The automated merge failed (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}). Unresolved files:
-
-          $conflicts
-
-          This branch starts at master. Merge the latest fips and master into it, resolve the conflicts, and copy build-aux/snap/local/snapcraft-fips.yaml from master to build-aux/snap/snapcraft.yaml. Push the result and mark this PR ready for review. Merge using 'Create a merge commit'."
-            fi
-          else
-            git commit -m "Merge master into fips, using snapcraft-fips.yaml"
-            git push --force-with-lease origin HEAD:refs/heads/sync-master-to-fips
-            if [[ -n "$sync_pr" ]]; then
-              if [[ "$is_draft" == true ]]; then
-                gh pr ready "$sync_pr"
-              fi
-            else
-              gh pr create --base fips --head sync-master-to-fips \
-                --title "chore: Synchronize fips with master" \
-                --body 'Synchronize fips with master, using snapcraft-fips.yaml from master as snapcraft.yaml. Merge using "Create a merge commit".'
-            fi
-          fi
+          build_and_push_sync
