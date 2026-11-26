@@ -70,7 +70,7 @@ jobs:
       - name: Require Jira credentials
         env:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           HAS_ADVISORY_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN != '' }}
         run: |
           set -euo pipefail
@@ -98,7 +98,7 @@ jobs:
           SNAPD_ADVISORY_GITHUB_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
           JIRA_BUG_LINK_FIELD: ${{ vars.JIRA_BUG_LINK_FIELD }}
           MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}

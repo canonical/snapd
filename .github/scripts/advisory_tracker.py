@@ -3,12 +3,14 @@
 """Create snapd GitHub security advisories as SNAPDENG Jira tickets.
 
 Commands:
-  summary       Overview of tickets. Replaces the tracking table on the parent
-                issue. --dry-run reports the table and does not write it.
-                Markdown by default, or JSON with --format json.
+  summary       Overview of tickets. Writes the Actions summary. Replaces the
+                tracking table on the parent issue when ADVISORY_TRACKER_CREATE
+                is true. A workflow run with that variable also creates tickets
+                and applies petnames. --dry-run reports those writes and does
+                not perform them. Markdown by default, or JSON with --format json.
   sync          Create missing triage and draft tickets and announce them.
-                --dry-run does not write. A real sync also replaces the
-                tracking table.
+                --dry-run does not write. Replaces the tracking table when
+                ADVISORY_TRACKER_CREATE is true.
 
 A follow-up can continue after the petname is published on the advisory.
 This command stops once the ticket exists and that announcement is done.
