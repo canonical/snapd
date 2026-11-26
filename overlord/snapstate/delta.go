@@ -112,16 +112,16 @@ func armCPUAllowsSnapDelta() (bool, error) {
 				if implementer == 0x41 {
 					switch part {
 					case 0xc05,
-						 0xc07,
-						 0xc08,
-						 0xd01,
-						 0xd02,
-						 0xd03,
-						 0xd04,
-						 0xd05,
-						 0xd46,
-						 0xd80,
-						 0xd8f:
+						0xc07,
+						0xc08,
+						0xd01,
+						0xd02,
+						0xd03,
+						0xd04,
+						0xd05,
+						0xd46,
+						0xd80,
+						0xd8f:
 						return false, nil
 					}
 				}
