@@ -17,6 +17,7 @@ CONFIG_PATH = os.path.normpath(
 )
 NOW = datetime(2026, 11, 12, 15, 0, tzinfo=UTC)
 NOW_STAMP = "2026-11-12T15:00:00.000+0000"
+CREATED_AT = "2026-11-01T00:00:00Z"
 PARENT = "SNAPDENG-37541"
 EMBER = "GHSA-95j9-cvc3-mmgg"
 WILLOW = "GHSA-p962-3gwv-5ppc"
@@ -26,9 +27,10 @@ NEW_ADVISORY_HOOK = "https://hooks.mattermost.test/new-advisory"
 RUN_LINK = "https://github.com/canonical/snapd/actions/runs/4242"
 NOT_CREATED_TEXT = "\n".join(
     [
+        "[](mailto:advisory-tracker)",
         "## :exclamation: advisory-tracker: a Jira ticket was not created",
         "",
-        f"Link: `{RUN_LINK}`",
+        f"[Run summary]({RUN_LINK})",
     ]
 )
 
@@ -113,9 +115,15 @@ def environment(**overrides):
 
 
 def sample_advisory(
-    ghsa, summary, state="triage", severity="medium", description=None, cve=None
+    ghsa,
+    summary,
+    state="triage",
+    severity="medium",
+    description=None,
+    cve=None,
+    created_at=CREATED_AT,
 ):
-    return {
+    advisory = {
         "ghsa_id": ghsa,
         "summary": summary,
         "state": state,
@@ -131,6 +139,9 @@ def sample_advisory(
             {"package": {"name": "snapd"}, "vulnerable_version_range": "< 2.70"}
         ],
     }
+    if created_at is not None:
+        advisory["created_at"] = created_at
+    return advisory
 
 
 def jira_issue(
@@ -374,6 +385,18 @@ def mattermost_texts(client):
 
 def created_fields(client):
     return client.created
+
+
+def adf_row_texts(row):
+    texts = []
+    for cell in row.get("content") or []:
+        paragraph = (cell.get("content") or [None])[0]
+        if not isinstance(paragraph, dict):
+            texts.append("")
+            continue
+        inline = (paragraph.get("content") or [None])[0]
+        texts.append(inline.get("text", "") if isinstance(inline, dict) else "")
+    return texts
 
 
 class AdvisoryTrackerTests(unittest.TestCase):
@@ -882,13 +905,18 @@ class AdvisoryTrackerTests(unittest.TestCase):
             "## :bug: advisory-tracker: new advisory detected",
             created[0],
         )
-        self.assertIn("Jira ticket created: SNAPDENG-500", created[0])
+        self.assertIn("[](mailto:advisory-tracker)", created[0])
         self.assertIn(
-            "Link: `https://github.com/canonical/snapd"
-            f"/security/advisories/{EMBER}`",
+            "Jira ticket created: [SNAPDENG-500]"
+            "(https://warthogs.atlassian.net/browse/SNAPDENG-500)",
             created[0],
         )
-        self.assertIn(f"GitHub-Advisory: {EMBER}", created[0])
+        self.assertIn(
+            f"GitHub-Advisory: [{EMBER}](https://github.com/canonical/snapd"
+            f"/security/advisories/{EMBER})",
+            created[0],
+        )
+        self.assertNotIn("Link:", created[0])
         self.assertEqual(texts.count(NOT_CREATED_TEXT), 2)
         self.assertEqual(len(created_fields(client)), 1)
 
@@ -977,10 +1005,22 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertIn("This epic groups security advisories for snapd.", text)
         self.assertIn("Each child card tracks one advisory.", text)
         self.assertIn("Last updated 2026-11-12 15:00 UTC.", text)
+        self.assertIn("Run summary", text)
+        self.assertIn("Priority", text)
+        self.assertIn("Age", text)
+        self.assertIn("11d", text)
         self.assertIn(EMBER, text)
         link = description["content"][3]["content"][1]["marks"][0]["attrs"]["href"]
         self.assertEqual(link, RUN_LINK)
+        self.assertEqual(
+            description["content"][3]["content"][1]["text"],
+            "Run summary",
+        )
         self.assertEqual(description["content"][4]["type"], "table")
+        self.assertEqual(
+            adf_row_texts(description["content"][4]["content"][0]),
+            list(tracker.TABLE_HEADERS),
+        )
         run(client, command="summary")
         again = client.parent_issue["fields"]["description"]["content"]
         self.assertEqual(
@@ -1017,6 +1057,91 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [])
 
+    def test_dispatched_summary_creates_and_notifies_at_the_sync_point(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        report = run(
+            client,
+            command="summary",
+            env=environment(GITHUB_EVENT_NAME="workflow_dispatch"),
+        )
+        self.assertEqual(report.mode, "summary")
+        self.assertEqual(report.advisories[0].action, "created")
+        self.assertEqual(len(created_fields(client)), 1)
+        self.assertEqual(len(mattermost_texts(client)), 1)
+
+    def test_scheduled_summary_create_without_notify_does_not_post(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        report = run(
+            client,
+            command="summary",
+            env=environment(
+                GITHUB_EVENT_NAME="schedule",
+                ADVISORY_TRACKER_NOTIFY="false",
+            ),
+        )
+        self.assertEqual(report.advisories[0].action, "created")
+        self.assertEqual(len(created_fields(client)), 1)
+        self.assertEqual(mattermost_texts(client), [])
+        self.assertIn("notify disabled", report.advisories[0].notifications)
+        self.assertNotEqual(client.parent_issue["fields"]["description"], original)
+        self.assertTrue(
+            any("description" in fields for _key, fields in client.edits)
+        )
+
+    def test_scheduled_summary_notify_without_create_does_not_write_jira(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        report = run(
+            client,
+            command="summary",
+            env=environment(
+                GITHUB_EVENT_NAME="schedule",
+                ADVISORY_TRACKER_CREATE="false",
+                ADVISORY_TRACKER_NOTIFY="true",
+            ),
+        )
+        self.assertEqual(report.advisories[0].action, "untracked")
+        self.assertEqual(created_fields(client), [])
+        self.assertEqual(mattermost_texts(client), [])
+        self.assertEqual(client.parent_issue["fields"]["description"], original)
+        self.assertFalse(
+            any("description" in fields for _key, fields in client.edits)
+        )
+
+    def test_scheduled_summary_without_permissions_does_not_write(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.parent_issue = jira_issue(
+            PARENT, "snapd security advisories", "To Do", issue_type="Epic", parent=None
+        )
+        original = client.parent_issue["fields"]["description"]
+        report = run(
+            client,
+            command="summary",
+            env=environment(
+                GITHUB_EVENT_NAME="schedule",
+                ADVISORY_TRACKER_CREATE="false",
+                ADVISORY_TRACKER_NOTIFY="false",
+            ),
+        )
+        self.assertEqual(report.advisories[0].action, "untracked")
+        self.assertEqual(created_fields(client), [])
+        self.assertEqual(mattermost_texts(client), [])
+        self.assertEqual(client.parent_issue["fields"]["description"], original)
+        self.assertFalse(
+            any("description" in fields for _key, fields in client.edits)
+        )
+
     def test_summary_omits_settled_advisories_without_an_error(self):
         published = sample_advisory(EMBER, "done (Ember Falcon)", state="published")
         triage = sample_advisory(WILLOW, "open (Quiet Willow)")
@@ -1026,6 +1151,110 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertNotIn(EMBER, text)
         self.assertIn(WILLOW, text)
         self.assertIn("omitted_advisories", text)
+
+    def test_summary_table_includes_priority_and_age(self):
+        advisory = sample_advisory(EMBER, "open (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        report = run(client, command="summary")
+        markdown = tracker.render_markdown(
+            report, omit_settled=True, updated=NOW, run_url=RUN_LINK
+        )
+        self.assertIn(
+            "| Advisory | Priority | Age | State | Ticket | Status | Result |",
+            markdown,
+        )
+        self.assertIn(f"| Ember Falcon {EMBER} | Medium | 11d |", markdown)
+        self.assertIn(
+            f"Last updated 2026-11-12 15:00 UTC. [Run summary]({RUN_LINK})",
+            markdown,
+        )
+        payload = json.loads(tracker.render_json(report))
+        self.assertEqual(payload["advisories"][0]["created"], "2026-11-01")
+        self.assertEqual(payload["advisories"][0]["priority"], "Medium")
+
+    def test_summary_table_orders_by_priority_then_oldest_age(self):
+        advisories = [
+            sample_advisory(
+                QUIET,
+                "c (Calm Mink)",
+                severity="high",
+                created_at="2026-09-01T00:00:00Z",
+            ),
+            sample_advisory(
+                WILLOW,
+                "b (Quiet Willow)",
+                severity="critical",
+                created_at="2026-11-10T00:00:00Z",
+            ),
+            sample_advisory(
+                EMBER,
+                "a (Ember Falcon)",
+                severity="critical",
+                created_at="2026-10-01T00:00:00Z",
+            ),
+        ]
+        client = FakeClient(advisories, [anchor()])
+        report = run(client, command="summary")
+        self.assertEqual(
+            [row.ghsa_id for row in report.advisories], [QUIET, WILLOW, EMBER]
+        )
+        ranked = tracker.ranked_advisories(report, omit_settled=True)
+        self.assertEqual([row.ghsa_id for row in ranked], [EMBER, WILLOW, QUIET])
+        markdown = tracker.render_markdown(report, omit_settled=True, updated=NOW)
+        self.assertLess(markdown.index(EMBER), markdown.index(WILLOW))
+        self.assertLess(markdown.index(WILLOW), markdown.index(QUIET))
+        self.assertIn(f"| Ember Falcon {EMBER} | Highest | 42d |", markdown)
+        self.assertIn(f"| Quiet Willow {WILLOW} | Highest | 2d |", markdown)
+        self.assertIn(f"| Calm Mink {QUIET} | High | 72d |", markdown)
+        table = tracker.tracking_section(report, NOW, RUN_LINK)[2]
+        self.assertEqual(
+            adf_row_texts(table["content"][0]),
+            list(tracker.TABLE_HEADERS),
+        )
+        self.assertEqual(
+            [adf_row_texts(row)[0] for row in table["content"][1:]],
+            [
+                f"Ember Falcon {EMBER}",
+                f"Quiet Willow {WILLOW}",
+                f"Calm Mink {QUIET}",
+            ],
+        )
+
+    def test_missing_created_at_leaves_age_empty_and_sorts_last(self):
+        missing = sample_advisory(
+            WILLOW, "b (Quiet Willow)", severity="medium", created_at=None
+        )
+        invalid = sample_advisory(
+            EMBER, "a (Ember Falcon)", severity="medium", created_at="not-a-date"
+        )
+        dated = sample_advisory(
+            QUIET,
+            "c (Calm Mink)",
+            severity="medium",
+            created_at="2026-11-01T00:00:00Z",
+        )
+        client = FakeClient([missing, invalid, dated], [anchor()])
+        report = run(client, command="summary")
+        self.assertEqual(report.advisories[0].created, None)
+        self.assertEqual(report.advisories[1].created, None)
+        ranked = tracker.ranked_advisories(report, omit_settled=True)
+        self.assertEqual(
+            [row.ghsa_id for row in ranked], [QUIET, WILLOW, EMBER]
+        )
+        markdown = tracker.render_markdown(report, omit_settled=True, updated=NOW)
+        self.assertIn(f"| Calm Mink {QUIET} | Medium | 11d |", markdown)
+        self.assertIn(f"| Quiet Willow {WILLOW} | Medium |  |", markdown)
+        self.assertIn(f"| Ember Falcon {EMBER} | Medium |  |", markdown)
+        payload = json.loads(tracker.render_json(report))
+        by_id = {row["ghsa_id"]: row for row in payload["advisories"]}
+        self.assertEqual(by_id[QUIET]["created"], "2026-11-01")
+        self.assertIsNone(by_id[WILLOW]["created"])
+        self.assertIsNone(by_id[EMBER]["created"])
+        table = tracker.tracking_section(report, NOW, None)[2]
+        cells = [adf_row_texts(row) for row in table["content"][1:]]
+        self.assertEqual(cells[0][2], "11d")
+        self.assertEqual(cells[1][2], "-")
+        self.assertEqual(cells[2][2], "-")
 
     def test_choose_codename_skips_existing_names(self):
         used = {"keen yak"}
@@ -1043,7 +1272,11 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(advisory["summary"], "pins a map (Lively Willow)")
         self.assertEqual(report.advisories[0].codename, "Lively Willow")
         text = mattermost_texts(client)[0]
-        self.assertIn("Jira ticket created: SNAPDENG-500", text)
+        self.assertIn(
+            "Jira ticket created: [SNAPDENG-500]"
+            "(https://warthogs.atlassian.net/browse/SNAPDENG-500)",
+            text,
+        )
 
     def test_failed_advisory_rename_is_retried_without_a_second_ticket(self):
         advisory = sample_advisory(EMBER, "pins a map")
@@ -1087,58 +1320,6 @@ class AdvisoryTrackerTests(unittest.TestCase):
             "notify disabled not_created", report.advisories[0].notifications
         )
         self.assertEqual(mattermost_texts(client), [])
-
-    def test_resolve_mode_uses_create_and_notify_only(self):
-        self.assertEqual(
-            tracker.resolve_mode(
-                {"GITHUB_EVENT_NAME": "schedule", "ADVISORY_TRACKER_CREATE": "true"}
-            ),
-            "apply",
-        )
-        self.assertEqual(
-            tracker.resolve_mode({"GITHUB_EVENT_NAME": "schedule"}),
-            "skip",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "workflow_dispatch",
-                    "INPUT_ACTION": "sync",
-                    "INPUT_DRY_RUN": "true",
-                    "INPUT_APPLY": "true",
-                }
-            ),
-            "dry-run",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "workflow_dispatch",
-                    "INPUT_ACTION": "summary",
-                    "INPUT_DRY_RUN": "true",
-                }
-            ),
-            "summary-dry-run",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "repository_dispatch",
-                    "PAYLOAD_ACTION": "summary",
-                    "PAYLOAD_DRY_RUN": "true",
-                }
-            ),
-            "summary-dry-run",
-        )
-        self.assertEqual(
-            tracker.resolve_mode(
-                {
-                    "GITHUB_EVENT_NAME": "workflow_dispatch",
-                    "INPUT_ACTION": "summary",
-                }
-            ),
-            "summary",
-        )
 
     def test_summary_dry_run_leaves_the_parent_description(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")

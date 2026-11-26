@@ -3,7 +3,6 @@
 """Create snapd GitHub security advisories as SNAPDENG Jira tickets.
 
 Commands:
-  resolve-mode  Print summary, summary-dry-run, dry-run, apply, or skip.
   summary       Overview of tickets. Replaces the tracking table on the parent
                 issue. --dry-run reports the table and does not write it.
                 Markdown by default, or JSON with --format json.
@@ -27,7 +26,9 @@ Environment, all read from the process environment:
                                when unset
   MATTERMOST_NEW_ADVISORY_WEBHOOK_URL
                                full incoming webhook; POST {"text": ...}
-  ADVISORY_TRACKER_CREATE      the string true allows Jira bug creation
+  ADVISORY_TRACKER_CREATE      the string true allows Jira ticket creation,
+                               the parent tracking table, and the advisory
+                               petname
   ADVISORY_TRACKER_NOTIFY      the string true allows Mattermost posts
   GITHUB_SERVER_URL            server in the not-created run link
   GITHUB_RUN_ID                Actions run id in that link
@@ -65,6 +66,9 @@ GITHUB_TIMEOUT_SECONDS = 60
 ADVISORY_LIMIT = 2000
 AUTOMATION_MARK = "advisory-tracker:"
 TRACKING_HEADING = "Tracking table"
+MATTERMOST_PREVIEW_BLOCKER = "[](mailto:advisory-tracker)"
+SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+TABLE_HEADERS = ["Advisory", "Priority", "Age", "State", "Ticket", "Status", "Result"]
 CHANNELS = ("mattermost",)
 BUG_LINK_FIELD_NAME = "Bug Link"
 BUG_LINK_FIELD_ENV = "JIRA_BUG_LINK_FIELD"
@@ -182,6 +186,8 @@ class AdvisoryRow:
     codename: str | None
     state: str
     severity: str
+    priority: str
+    created: datetime | None
     ready: bool
     reasons: list[str]
     action: str
@@ -194,8 +200,8 @@ class AdvisoryRow:
 
 @dataclass(frozen=True)
 class Permissions:
-    create: bool
-    notify: bool
+    advisory_tracker_create: bool
+    advisory_tracker_notify: bool
 
 
 @dataclass
@@ -691,8 +697,8 @@ def is_true(value: str | None) -> bool:
 
 def permissions_from_env(env: Mapping[str, str]) -> Permissions:
     return Permissions(
-        is_true(env.get("ADVISORY_TRACKER_CREATE")),
-        is_true(env.get("ADVISORY_TRACKER_NOTIFY")),
+        advisory_tracker_create=is_true(env.get("ADVISORY_TRACKER_CREATE")),
+        advisory_tracker_notify=is_true(env.get("ADVISORY_TRACKER_NOTIFY")),
     )
 
 
@@ -701,37 +707,23 @@ def permission_line(permissions: Permissions) -> str:
         return "on" if enabled else "off"
 
     return (
-        f"Permissions: create {word(permissions.create)}, "
-        f"notify {word(permissions.notify)}"
+        f"Permissions: create {word(permissions.advisory_tracker_create)}, "
+        f"notify {word(permissions.advisory_tracker_notify)}"
     )
 
 
-def resolve_mode(env: Mapping[str, str]) -> str:
-    event = env.get("GITHUB_EVENT_NAME") or ""
-    permissions = permissions_from_env(env)
-    if event == "schedule":
-        action = "sync"
-        apply = permissions.create or permissions.notify
-        dry_run = False
-    elif event == "workflow_dispatch":
-        action = env.get("INPUT_ACTION") or "summary"
-        apply = is_true(env.get("INPUT_APPLY"))
-        dry_run = is_true(env.get("INPUT_DRY_RUN"))
-    elif event == "repository_dispatch":
-        action = env.get("PAYLOAD_ACTION") or "summary"
-        apply = is_true(env.get("PAYLOAD_APPLY"))
-        dry_run = is_true(env.get("PAYLOAD_DRY_RUN"))
-    else:
-        raise TrackerError(f"cannot resolve mode: unsupported event {event or 'unset'}")
-    if action not in {"summary", "sync"}:
-        raise TrackerError(f"cannot resolve mode: unsupported action {action}")
-    if action == "summary":
-        return "summary-dry-run" if dry_run else "summary"
-    if dry_run:
-        return "dry-run"
-    if apply:
-        return "apply"
-    return "skip"
+def workflow_event(env: Mapping[str, str]) -> bool:
+    return (env.get("GITHUB_EVENT_NAME") or "") in {
+        "schedule",
+        "workflow_dispatch",
+        "repository_dispatch",
+    }
+
+
+def summary_writes_allowed(tracker: Tracker) -> bool:
+    if not workflow_event(tracker.env):
+        return False
+    return tracker.permissions.advisory_tracker_create
 
 
 def _adf_inline(content: list[Any]) -> str:
@@ -845,22 +837,26 @@ def optional_run_url(env: Mapping[str, str]) -> str | None:
         return None
 
 
-def _tracking_rows(report: Report) -> list[list[str]]:
-    rows = [["Advisory", "State", "Ticket", "Status", "Result"]]
-    for row in displayed_advisories(report, omit_settled=True):
-        if row.issue_keys:
-            tickets = ", ".join(row.issue_keys)
-        else:
-            tickets = row.issue_key or ""
-        rows.append(
-            [
-                _advisory_cell(row),
-                row.state,
-                tickets,
-                row.issue_status or "",
-                _result_cell(row),
-            ]
-        )
+def _tracking_row_cells(row: AdvisoryRow, now: datetime | None) -> list[str]:
+    if row.issue_keys:
+        tickets = ", ".join(row.issue_keys)
+    else:
+        tickets = row.issue_key or ""
+    return [
+        _advisory_cell(row),
+        row.priority,
+        _age_cell(row, now),
+        row.state,
+        tickets,
+        row.issue_status or "",
+        _result_cell(row),
+    ]
+
+
+def _tracking_rows(report: Report, now: datetime | None) -> list[list[str]]:
+    rows = [list(TABLE_HEADERS)]
+    for row in ranked_advisories(report, omit_settled=True):
+        rows.append(_tracking_row_cells(row, now))
     return rows
 
 
@@ -872,14 +868,14 @@ def tracking_section(
         updated = _adf_paragraph(
             [
                 _adf_text(f"Last updated {stamp}. "),
-                _adf_link("Actions run", run_url),
+                _adf_link("Run summary", run_url),
             ]
         )
     else:
         updated = _adf_paragraph([_adf_text(f"Last updated {stamp}.")])
-    table_rows = _tracking_rows(report)
+    table_rows = _tracking_rows(report, moment)
     if len(table_rows) == 1:
-        table_rows.append(["-", "-", "-", "-", "No open advisories"])
+        table_rows.append(["-", "-", "-", "-", "-", "-", "No open advisories"])
     table = {
         "type": "table",
         "attrs": {"isNumberColumnEnabled": False, "layout": "default"},
@@ -1052,6 +1048,56 @@ def jira_priority(config: Config, severity: str) -> str:
     if fallback:
         return fallback
     return "Medium"
+
+
+def _severity_rank(row: AdvisoryRow) -> int:
+    if row.severity in SEVERITY_RANK:
+        return SEVERITY_RANK[row.severity]
+    return SEVERITY_RANK["medium"]
+
+
+def _table_sort_key(row: AdvisoryRow) -> tuple[int, bool, datetime]:
+    created = row.created or datetime.min.replace(tzinfo=UTC)
+    return (_severity_rank(row), row.created is None, created)
+
+
+def ranked_advisories(report: Report, omit_settled: bool = False) -> list[AdvisoryRow]:
+    return sorted(
+        displayed_advisories(report, omit_settled),
+        key=_table_sort_key,
+    )
+
+
+def advisory_age_days(row: AdvisoryRow, now: datetime) -> int | None:
+    if row.created is None:
+        return None
+    return (now.date() - row.created.date()).days
+
+
+def _age_cell(row: AdvisoryRow, now: datetime | None) -> str:
+    if now is None:
+        return ""
+    days = advisory_age_days(row, now)
+    if days is None:
+        return ""
+    return f"{days}d"
+
+
+def parse_advisory_created(value: Any) -> datetime | None:
+    if not isinstance(value, str) or value.strip() == "":
+        return None
+    try:
+        return parse_time(value)
+    except TrackerError:
+        return None
+
+
+def jira_base_url(env: Mapping[str, str]) -> str:
+    return (env.get("JIRA_BASE_URL") or "https://warthogs.atlassian.net").rstrip("/")
+
+
+def jira_browse_url(env: Mapping[str, str], issue_key: str) -> str:
+    return f"{jira_base_url(env)}/browse/{issue_key}"
 
 
 def create_fields(
@@ -1396,6 +1442,8 @@ def _row_from_advisory(
         codename=accepted_codename(summary) if summary else None,
         state=state,
         severity=severity_text,
+        priority=jira_priority(config, severity_text),
+        created=parse_advisory_created(advisory.get("created_at")),
         ready=not reasons,
         reasons=reasons,
         action="",
@@ -1453,18 +1501,19 @@ def _attach(row: AdvisoryRow, issue: Issue, related: list[Issue]) -> None:
     row.issue_status = issue.status
 
 
-def _quiet_link(url: str) -> str:
-    return f"Link: `{url}`"
-
-
-def created_message(row: AdvisoryRow, issue_key: str) -> str:
+def created_message(row: AdvisoryRow, issue_key: str, env: Mapping[str, str]) -> str:
+    ticket = f"[{issue_key}]({jira_browse_url(env, issue_key)})"
+    if row.url:
+        advisory = f"[{row.ghsa_id}]({row.url})"
+    else:
+        advisory = row.ghsa_id
     return "\n".join(
         [
+            MATTERMOST_PREVIEW_BLOCKER,
             f"## :bug: {AUTOMATION_MARK} new advisory detected",
             "",
-            f"Jira ticket created: {issue_key}",
-            f"GitHub-Advisory: {row.ghsa_id}",
-            _quiet_link(row.url),
+            f"Jira ticket created: {ticket}",
+            f"GitHub-Advisory: {advisory}",
         ]
     )
 
@@ -1483,9 +1532,10 @@ def run_summary_url(env: Mapping[str, str]) -> str:
 def not_created_message(env: Mapping[str, str]) -> str:
     return "\n".join(
         [
+            MATTERMOST_PREVIEW_BLOCKER,
             f"## :exclamation: {AUTOMATION_MARK} a Jira ticket was not created",
             "",
-            _quiet_link(run_summary_url(env)),
+            f"[Run summary]({run_summary_url(env)})",
         ]
     )
 
@@ -1518,13 +1568,13 @@ def _announce_created(
     issue_key: str,
     writes: Permissions,
 ) -> None:
-    if not tracker.permissions.notify:
+    if not tracker.permissions.advisory_tracker_notify:
         if "notify disabled" not in row.notifications:
             row.notifications.append("notify disabled")
         return
-    message = created_message(row, issue_key)
+    message = created_message(row, issue_key, tracker.env)
     for channel in tracker.config.notify["created"]:
-        if not writes.notify:
+        if not writes.advisory_tracker_notify:
             row.notifications.append(f"would {channel} created")
             continue
         try:
@@ -1552,11 +1602,15 @@ def _publish_codename(
     if name is None or not is_public_codename(name):
         return
     used.add(codename_key(name))
-    if mode == "summary" or not writes.create:
+    if not writes.advisory_tracker_create:
         row.codename = name
-        if mode != "summary" and tracker.permissions.create:
+        # A summary outside a workflow run stops here. A workflow summary that
+        # is allowed to write continues to the same decision sync uses.
+        if mode == "summary" and not summary_writes_allowed(tracker):
+            return
+        if tracker.permissions.advisory_tracker_create:
             row.notifications.append(f"would rename advisory {name}")
-        elif mode != "summary":
+        else:
             row.notifications.append("create disabled")
         return
     updated = summary_with_codename(row.summary, name)
@@ -1574,20 +1628,22 @@ def _blocked_creation(row: AdvisoryRow, states: Sequence[str]) -> bool:
 def _finish_not_created(
     tracker: Tracker, report: Report, command: str, dry_run: bool
 ) -> None:
-    if command != "sync":
+    # A workflow summary uses the same notice as sync, at this same point.
+    workflow_summary = command == "summary" and workflow_event(tracker.env)
+    if command != "sync" and not workflow_summary:
         return
     rows = [
         row
         for row in report.advisories
         if _blocked_creation(row, report.create_for_states)
     ]
-    if not rows or not tracker.permissions.create:
+    if not rows or not tracker.permissions.advisory_tracker_create:
         return
     channels = tracker.config.notify.get("not_created", ())
     if "mattermost" not in channels:
         return
     row = rows[0]
-    if not tracker.permissions.notify:
+    if not tracker.permissions.advisory_tracker_notify:
         row.notifications.append("notify disabled not_created")
         return
     if dry_run:
@@ -1621,15 +1677,19 @@ def _create_missing(
     if not row.ready:
         row.action = "not_ready"
         return None
-    if mode == "summary":
+    if mode == "summary" and not summary_writes_allowed(tracker):
         row.action = "untracked"
         return None
     if report.confirmation_error:
         row.action = "refused"
         row.error = report.confirmation_error
         return None
-    if not writes.create:
-        row.action = "would_create" if tracker.permissions.create else "create_disabled"
+    if not writes.advisory_tracker_create:
+        row.action = (
+            "would_create"
+            if tracker.permissions.advisory_tracker_create
+            else "create_disabled"
+        )
         if row.action == "would_create":
             _announce_created(tracker, report, row, "new", writes)
         return None
@@ -1663,8 +1723,8 @@ def _ensure_bug_link(
         return
     if issue.bug_link or row.url == "":
         return
-    if not writes.create:
-        if mode == "dry-run" and tracker.permissions.create:
+    if not writes.advisory_tracker_create:
+        if mode == "dry-run" and tracker.permissions.advisory_tracker_create:
             row.notifications.append("would set bug link")
         return
     try:
@@ -1765,10 +1825,17 @@ def execute(
         permissions=tracker.permissions,
         create_for_states=config.create_for_states,
     )
-    active = command == "sync" and not dry_run and report.confirmation_error is None
+    # A workflow summary performs the sync writes here. ADVISORY_TRACKER_CREATE
+    # and ADVISORY_TRACKER_NOTIFY still decide which of those writes run.
+    workflow_summary = command == "summary" and workflow_event(env) and not dry_run
+    active = (
+        (command == "sync" or workflow_summary)
+        and not dry_run
+        and report.confirmation_error is None
+    )
     writes = Permissions(
-        active and tracker.permissions.create,
-        active and tracker.permissions.notify,
+        advisory_tracker_create=active and tracker.permissions.advisory_tracker_create,
+        advisory_tracker_notify=active and tracker.permissions.advisory_tracker_notify,
     )
     used = collect_used_codenames(advisories, children)
     for advisory in advisories:
@@ -1788,11 +1855,16 @@ def execute(
                 )
             else:
                 report.errors.append(str(exc))
-    if report.confirmation_error and command == "sync":
+    creating = command == "sync" or (
+        workflow_summary and tracker.permissions.advisory_tracker_create
+    )
+    if report.confirmation_error and creating:
         if report.confirmation_error not in report.errors:
             report.errors.append(report.confirmation_error)
     _finish_not_created(tracker, report, command, dry_run)
-    if not dry_run:
+    # The parent table is a Jira write. ADVISORY_TRACKER_CREATE allows it.
+    publish_table = not dry_run and tracker.permissions.advisory_tracker_create
+    if publish_table:
         publish_tracking_table(tracker, report)
     return report
 
@@ -1859,7 +1931,7 @@ def render_markdown(
     if updated is not None:
         stamp = _updated_stamp(updated)
         if run_url:
-            lines.append(f"Last updated {stamp}. [Actions run]({run_url})")
+            lines.append(f"Last updated {stamp}. [Run summary]({run_url})")
         else:
             lines.append(f"Last updated {stamp}.")
         lines.append("")
@@ -1870,7 +1942,7 @@ def render_markdown(
             permission_line(report.permissions),
         ]
     )
-    visible = displayed_advisories(report, omit_settled)
+    visible = ranked_advisories(report, omit_settled)
     if omit_settled:
         hidden = len(report.advisories) - len(visible)
         lines.append(f"Omitting {hidden} published or closed advisories with no error.")
@@ -1881,27 +1953,14 @@ def render_markdown(
         lines.extend(["Confirmation: child issue type matches.", ""])
     lines.extend(
         [
-            "| Advisory | State | Ticket | Status | Result |",
-            "| --- | --- | --- | --- | --- |",
+            "| " + " | ".join(TABLE_HEADERS) + " |",
+            "| " + " | ".join("---" for _ in TABLE_HEADERS) + " |",
         ]
     )
     for row in visible:
-        result = _result_cell(row)
         lines.append(
             "| "
-            + " | ".join(
-                [
-                    _cell(_advisory_cell(row)),
-                    _cell(row.state),
-                    _cell(
-                        ", ".join(row.issue_keys)
-                        if row.issue_keys
-                        else (row.issue_key or "")
-                    ),
-                    _cell(row.issue_status or ""),
-                    _cell(result),
-                ]
-            )
+            + " | ".join(_cell(value) for value in _tracking_row_cells(row, updated))
             + " |"
         )
     created = [row for row in visible if row.action == "created"]
@@ -1934,17 +1993,16 @@ def render_markdown(
 
 def render_json(report: Report) -> str:
     payload = asdict(report)
-    advisories = payload["advisories"]
+    ranked = ranked_advisories(report, omit_settled=report.mode == "summary")
     if report.mode == "summary":
-        advisories = [
-            row
-            for row in advisories
-            if not settled_without_error(row.get("state") or "", row.get("error"))
-        ]
-        payload["omitted_advisories"] = len(report.advisories) - len(advisories)
+        payload["omitted_advisories"] = len(report.advisories) - len(ranked)
+    advisories = [asdict(row) for row in ranked]
     for row in advisories:
         row.pop("summary", None)
         row.pop("cve_id", None)
+        created = row.get("created")
+        if isinstance(created, datetime):
+            row["created"] = created.date().isoformat()
         codename = row.get("codename")
         if not isinstance(codename, str) or not is_public_codename(codename):
             row["codename"] = None
@@ -1966,7 +2024,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Track snapd GitHub advisories in Jira"
     )
-    parser.add_argument("command", choices=("resolve-mode", "summary", "sync"))
+    parser.add_argument("command", choices=("summary", "sync"))
     parser.add_argument("--config", default=default_config_path())
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--format", choices=("json", "markdown"), default="markdown")
@@ -1983,13 +2041,6 @@ def main(
 ) -> int:
     args = _parser().parse_args(sys.argv[1:] if argv is None else argv)
     environ = os.environ if env is None else env
-    if args.command == "resolve-mode":
-        try:
-            print(resolve_mode(environ))
-        except TrackerError as exc:
-            print(f"::error::{exc}", file=sys.stderr)
-            return 1
-        return 0
     output_format = args.format if args.command == "summary" else "markdown"
     moment = now or datetime.now(UTC)
     try:

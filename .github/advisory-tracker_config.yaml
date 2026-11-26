@@ -1,6 +1,8 @@
 # Children of this issue track snapd GitHub security advisories.
-# Apply is refused until a child uses issue_type. Ticket summaries are not
-# required to be codenames; existing tickets keep the summary they already have.
+# Ticket creation is refused unless the parent has a child of issue_type,
+# so the epic is confirmed as a container for that type. Ticket summaries
+# are not required to be codenames; existing tickets keep the summary they
+# already have.
 # A new advisory is not expected to have a petname. The name is chosen when
 # its Jira ticket is created, then appended to the advisory. If the ticket
 # already exists and the advisory has no petname yet, that ticket's petname
@@ -22,6 +24,8 @@ priority_map:
   medium: Medium
   low: Low
 
+# An advisory is ready for a ticket when it has a summary and a description
+# of at least min_description_chars. Shorter writeups stay not_ready.
 readiness:
   min_description_chars: 80
 
