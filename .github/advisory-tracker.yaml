@@ -1,0 +1,96 @@
+# Children of this issue track snapd GitHub security advisories.
+# Apply is refused until a child uses issue_type. Ticket summaries are not
+# required to be codenames; existing tickets keep the summary they already have.
+# A new advisory is not expected to have a petname. The name is chosen when
+# its Jira ticket is created, then appended to the advisory. If the ticket
+# already exists and the advisory has no petname yet, that ticket's petname
+# is appended on sync.
+parent_key: SNAPDENG-37541
+project_key: SNAPDENG
+issue_type: Task
+
+# States that may open a new ticket. Other states are status-synced only
+# when a ticket already references the advisory.
+create_for_states:
+  - triage
+  - draft
+
+# GitHub advisory state to Jira status.
+# Sync transitions the Jira ticket only.
+# The advisory is never changed to match the ticket. A mismatch is reported.
+# Rename these to the statuses on SNAPDENG-37541 children before applying.
+state_map:
+  triage: Triage
+  draft: In Progress
+  published: Done
+  closed: "Won't Do"
+
+# Earlier statuses are less progressed. A split advisory is in sync when the
+# least progressed child implies the advisory state. Sync moves tickets in
+# that status forward to the advisory status and leaves a more progressed
+# ticket unchanged. In Review has no advisory state of its own.
+status_progress:
+  Triage: triage
+  In Progress: draft
+  In Review: draft
+  Done: published
+  "Won't Do": closed
+
+# Set only when the advisory already has a severity. Triage decides it otherwise.
+priority_map:
+  critical: Highest
+  high: High
+  medium: Medium
+  low: Low
+
+readiness:
+  min_description_chars: 80
+
+# assigned and investigated run during triage, before severity is known.
+# in_progress and done take a day limit per severity. default applies when
+# the advisory severity is missing or unrecognized.
+progress:
+  stall_cooldown_days: 7
+  stages:
+    - name: assigned
+      within_days: 2
+      requires:
+        assignee: true
+    - name: investigated
+      within_days: 7
+      requires:
+        human_comments_min: 1
+    - name: in_progress
+      within_days:
+        critical: 14
+        high: 14
+        medium: 14
+        low: 14
+        default: 14
+      requires:
+        status_any:
+          - In Progress
+          - In Review
+          - Done
+    - name: done
+      within_days:
+        critical: 60
+        high: 60
+        medium: 60
+        low: 60
+        default: 60
+      requires:
+        status_any:
+          - Done
+          - "Won't Do"
+
+# Channels are mattermost and jira_comment.
+# Remove a name to disable that channel for the event.
+notify:
+  created:
+    - mattermost
+  not_ready:
+    - mattermost
+  stall:
+    - mattermost
+    - jira_comment
