@@ -1243,6 +1243,20 @@ func (s *kernelDriversTestSuite) TestRegenerateFirmwareBestEffortContinuesPastEr
 	outdated, err := kernel.DriversTreeOutdated(destDir)
 	c.Assert(err, IsNil)
 	c.Check(outdated, Equals, true)
+
+	// Re-running without the injected failures converges the tree: both old
+	// and missing entries are reconciled, the pending marker is completed.
+	restore()
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
+	c.Assert(err, IsNil)
+	for _, name := range []string{"blob1", "blob2", "subdir"} {
+		c.Check(filepath.Join(fwParent, name), testutil.SymlinkTargetEquals,
+			filepath.Join(mountDir, "firmware", name))
+	}
+	c.Check(filepath.Join(destDir, "kernel.json.pending"), testutil.FileAbsent)
+	outdated, err = kernel.DriversTreeOutdated(destDir)
+	c.Assert(err, IsNil)
+	c.Check(outdated, Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestRegenerateLeavesNonEmptyLocalFirmwareDirAlone(c *C) {

@@ -631,8 +631,9 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		Destination: destDir,
 	}
 
-	// Pending means a previous run may have changed live children. Leave it
-	// in place until the replacement candidate is ready, even if unreadable.
+	// Pending means a previous run may have changed live entries. Leave it in
+	// place until the replacement candidate is ready, even if unreadable; a
+	// re-run with the same inputs reconciles whatever was or was not applied.
 	if _, err := os.Lstat(driversTreeMetaPath(destDir) + ".pending"); err == nil {
 		logger.Debugf("kernel drivers tree %q has an incomplete update marker", destDir)
 	} else if !errors.Is(err, fs.ErrNotExist) {
@@ -650,7 +651,11 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	// Version 0 had no marker; both 0 and 1 could copy component aliases as relative links.
+	// Version 0 had no marker; both 0 and 1 could copy component aliases as
+	// relative links, making them indistinguishable from user placed files.
+	// Treat every relative symlink in firmware/updates as generated for such
+	// trees: a re-run with the same inputs converges, but a locally created
+	// relative alias may be retargeted or removed.
 	legacyRelativeFirmware := kernelDriversTreeGeneratorVersion >= 2 &&
 		(old.GeneratorVersion == 0 || old.GeneratorVersion == 1)
 
@@ -704,7 +709,9 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	}
 
 	if !isRebuild {
-		// The rename syncs directory entries, not the candidate's contents.
+		// Publish the fresh tree: sync the candidate contents (rename only
+		// syncs directory entries), record the marker inside it, then rename
+		// it onto destDir. Rebuilding the live tree continues below.
 		doSync()
 		if err := atomicWriteDriversTreeMeta(driversTreeMetaPath(candidate), meta); err != nil {
 			return err
@@ -712,8 +719,11 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		if err := osutil.AtomicRename(candidate, destDir); err != nil {
 			return err
 		}
+		// End of new tree construction.
 		return nil
 	}
+
+	// From here on, we are updating a tree that is already in place.
 
 	// Preflight both live firmware directories before publishing pending. The
 	// checks could be done earlier, but it's clearer to keep them here.
@@ -748,7 +758,9 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// fine.
 	doSync()
 
-	// Write the metadata and move it under the target tree, so if things fail we could inspect it.
+	// Write the metadata and move it under the target tree, so if things fail
+	// we could inspect it. A later run with the same inputs converges by
+	// reconciling the entries this run did not reach.
 	pending := final + ".pending"
 	if err := atomicWriteDriversTreeMeta(driversTreeMetaPath(candidate)+".pending", meta); err != nil {
 		return err

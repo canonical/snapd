@@ -5168,6 +5168,13 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 		})
 	st.Lock()
 	if err != nil {
+		// A failed drivers tree reconciliation is not undone here: the tree
+		// update is not atomic and this task is the first one touching it.
+		// Instead, a pending marker records the inputs, and re-running
+		// prepare with the same inputs converges the tree (the same applies
+		// after an interruption, e.g. an unexpected reboot). Note that for a
+		// same-revision refresh the generated tree is identical, so there is
+		// no partial state to roll back.
 		return err
 	}
 
