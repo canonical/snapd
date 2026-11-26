@@ -821,8 +821,8 @@ class AdvisoryTrackerTests(unittest.TestCase):
         client = FakeClient([first, second], [anchor()])
         report = run(client)
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_TEXT])
-        self.assertIn("notified not created", report.advisories[0].notifications)
-        self.assertNotIn("notified not created", report.advisories[1].notifications)
+        self.assertEqual(report.advisories[0].notifications, ["notified"])
+        self.assertEqual(report.advisories[1].notifications, ["notified"])
 
     def test_failed_create_posts_one_summary_link(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
@@ -902,12 +902,12 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(created_fields(client), [])
         actions = {row.ghsa_id: row.action for row in report.advisories}
         self.assertEqual(actions[EMBER], "not_ready")
-        self.assertEqual(actions[WILLOW], "create disabled")
+        self.assertEqual(actions[WILLOW], "not created")
         self.assertIsNone(report.advisories[1].error)
         self.assertEqual(report.errors, [])
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_CREATE_OFF_TEXT])
-        self.assertIn("notified not created", report.advisories[0].notifications)
-        self.assertNotIn("notified not created", report.advisories[1].notifications)
+        self.assertEqual(report.advisories[0].notifications, ["notified"])
+        self.assertEqual(report.advisories[1].notifications, ["notified"])
         self.assertNotIn("new advisory detected", mattermost_texts(client)[0])
 
     def test_notify_permission_off_still_creates(self):
@@ -942,9 +942,9 @@ class AdvisoryTrackerTests(unittest.TestCase):
         report = run(client, dry_run=True)
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [])
-        self.assertIn("would notify not created", report.advisories[0].notifications)
+        self.assertIn("would notify", report.advisories[0].notifications)
         self.assertIn(
-            "<td>not_ready; would notify not created</td>",
+            "<td>not_ready; would notify</td>",
             tracker.render_markdown(report),
         )
 
@@ -1043,7 +1043,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         )
         report = run(client, env=env)
         self.assertIn("does not match child issue type Task", report.confirmation_error)
-        self.assertEqual(report.advisories[0].action, "create disabled")
+        self.assertEqual(report.advisories[0].action, "not created")
         self.assertIsNone(report.advisories[0].error)
         self.assertEqual(report.errors, [])
         self.assertEqual(created_fields(client), [])
@@ -1260,14 +1260,14 @@ class AdvisoryTrackerTests(unittest.TestCase):
                 ADVISORY_TRACKER_NOTIFY="true",
             ),
         )
-        self.assertEqual(report.advisories[0].action, "create disabled")
+        self.assertEqual(report.advisories[0].action, "not created")
         self.assertIsNone(report.advisories[0].error)
         self.assertEqual(report.errors, [])
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_CREATE_OFF_TEXT])
-        self.assertIn("notified not created", report.advisories[0].notifications)
+        self.assertIn("notified", report.advisories[0].notifications)
         self.assertIn(
-            "<td>create disabled; notified not created</td>",
+            "<td>not created; notified</td>",
             tracker.render_markdown(report),
         )
         self.assertEqual(client.parent_issue["fields"]["description"], original)
@@ -1288,7 +1288,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         )
         report = run(client, command="summary", env=env)
         self.assertIn("does not match child issue type Task", report.confirmation_error)
-        self.assertEqual(report.advisories[0].action, "create disabled")
+        self.assertEqual(report.advisories[0].action, "not created")
         self.assertIsNone(report.advisories[0].error)
         self.assertEqual(report.errors, [])
         self.assertEqual(created_fields(client), [])
@@ -1329,10 +1329,14 @@ class AdvisoryTrackerTests(unittest.TestCase):
                 ADVISORY_TRACKER_NOTIFY="false",
             ),
         )
-        self.assertEqual(report.advisories[0].action, "create disabled")
+        self.assertEqual(report.advisories[0].action, "not created")
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [])
-        self.assertIn("notify disabled not created", report.advisories[0].notifications)
+        self.assertIn("not notified", report.advisories[0].notifications)
+        self.assertIn(
+            "<td>not created; not notified</td>",
+            tracker.render_markdown(report),
+        )
         self.assertEqual(client.parent_issue["fields"]["description"], original)
         self.assertFalse(
             any("description" in fields for _key, fields in client.edits)
@@ -1558,9 +1562,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         client = FakeClient([advisory], [anchor()])
         report = run(client, env=environment(ADVISORY_TRACKER_NOTIFY="false"))
         self.assertEqual(report.advisories[0].action, "not_ready")
-        self.assertIn(
-            "notify disabled not created", report.advisories[0].notifications
-        )
+        self.assertIn("not notified", report.advisories[0].notifications)
         self.assertEqual(mattermost_texts(client), [])
 
     def test_summary_dry_run_leaves_the_parent_description(self):
