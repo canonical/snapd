@@ -1788,7 +1788,7 @@ def _publish_codename(
         if tracker.permissions.advisory_tracker_create:
             row.notifications.append(f"would rename advisory {name}")
         else:
-            row.notifications.append("not created")
+            row.notifications.append("not renamed")
         return
     updated = summary_with_codename(row.summary, name)
     tracker.update_advisory_summary(row.ghsa_id, updated)

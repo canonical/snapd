@@ -1567,7 +1567,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(again.advisories[0].action, "tracked")
         self.assertEqual(advisory["summary"], "pins a map (Keen Yak)")
 
-    def test_create_off_records_not_created_for_a_tracked_rename(self):
+    def test_create_off_records_not_renamed_for_a_tracked_rename(self):
         advisory = sample_advisory(EMBER, "pins a map")
         client = FakeClient(
             [advisory],
@@ -1575,7 +1575,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         )
         report = run(client, env=environment(ADVISORY_TRACKER_CREATE="false"))
         self.assertEqual(report.advisories[0].action, "tracked")
-        self.assertEqual(report.advisories[0].notifications, ["not created"])
+        self.assertEqual(report.advisories[0].notifications, ["not renamed"])
         self.assertEqual(advisory["summary"], "pins a map")
         self.assertEqual(created_fields(client), [])
         self.assertEqual(client.edits, [])
