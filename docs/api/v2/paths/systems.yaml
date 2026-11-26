@@ -10,8 +10,7 @@ get:
   description: |-
     Retrieves a list of all available recovery systems on the device. If the
     'running' query parameter is set to 'true', returns
-    the details of the currently running system (equivalent to 'GET
-    /v2/systems/{label}' for the running system's label).
+    the details of the currently running system.
   operationId: getSystems
   security:
     - PeerAuth: []
@@ -20,8 +19,9 @@ get:
       in: query
       description: |-
         If set to 'true', returns the details of the currently
-        running system instead of the list of all recovery systems. When set to 'true', the request additionally requires the
-        'snap-fde-control' interface or polkit authorization.
+        running system instead of the list of all recovery systems. When set to 'true', the request requires root peer
+        credentials or polkit authorization. Requests from a snap (over snapd-snap.socket) additionally require the
+        'snap-fde-control' interface to be connected.
       schema:
         type: boolean
   responses:
@@ -32,7 +32,7 @@ get:
       content:
         application/json:
           schema:
-            oneOf:
+            anyOf:
               - type: object
                 properties:
                   systems:
@@ -54,8 +54,9 @@ post:
     Perform an action such as 'reboot', 'install', or 'fix-encryption-support'
     on the current active recovery system, or 'create' a new recovery
     system. Actions 'reboot', 'install', and 'create' require root access.
-    Action 'fix-encryption-support' additionally requires the
-    'snap-fde-control' interface or polkit authorization.
+    Action 'fix-encryption-support' requires root peer credentials or polkit
+    authorization. Requests from a snap (over snapd-snap.socket) additionally
+    require the 'snap-fde-control' interface to be connected.
   operationId: performSystemAction
   security: []
   requestBody:
