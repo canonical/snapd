@@ -31,7 +31,9 @@ Environment, all read from the process environment:
   ADVISORY_TRACKER_CREATE      the string true allows Jira ticket creation,
                                the parent tracking table, and the advisory
                                petname
-  ADVISORY_TRACKER_NOTIFY      the string true allows Mattermost posts
+  ADVISORY_TRACKER_NOTIFY      the string true allows Mattermost posts.
+                               A not-created notice is still posted when CREATE
+                               is off
   GITHUB_SERVER_URL            server in the not-created run link
   GITHUB_RUN_ID                Actions run id in that link
 
@@ -1702,15 +1704,16 @@ def run_summary_url(env: Mapping[str, str]) -> str:
     return f"{server}/{repo}/actions/runs/{run_id}"
 
 
-def not_created_message(env: Mapping[str, str]) -> str:
-    return "\n".join(
-        [
-            MATTERMOST_PREVIEW_BLOCKER,
-            f"## :exclamation: {AUTOMATION_MARK} a Jira ticket was not created",
-            "",
-            f"[Run summary]({run_summary_url(env)})",
-        ]
-    )
+def not_created_message(env: Mapping[str, str], reason: str | None = None) -> str:
+    lines = [
+        MATTERMOST_PREVIEW_BLOCKER,
+        f"## :exclamation: {AUTOMATION_MARK} a Jira ticket was not created",
+        "",
+    ]
+    if reason:
+        lines.append(reason)
+    lines.append(f"[Run summary]({run_summary_url(env)})")
+    return "\n".join(lines)
 
 
 def _post_mattermost(tracker: Tracker, message: str) -> None:
@@ -1795,7 +1798,7 @@ def _publish_codename(
 def _blocked_creation(row: AdvisoryRow, states: Sequence[str]) -> bool:
     if row.state not in states or row.issue_key:
         return False
-    return row.action in {"not_ready", "error", "refused"}
+    return row.action in {"not_ready", "error", "refused", "create disabled"}
 
 
 def _finish_not_created(
@@ -1810,7 +1813,7 @@ def _finish_not_created(
         for row in report.advisories
         if _blocked_creation(row, report.create_for_states)
     ]
-    if not rows or not tracker.permissions.advisory_tracker_create:
+    if not rows:
         return
     channels = tracker.config.notify.get("not_created", ())
     if "mattermost" not in channels:
@@ -1822,8 +1825,11 @@ def _finish_not_created(
     if dry_run:
         row.notifications.append("would notify not created")
         return
+    reason = None
+    if not tracker.permissions.advisory_tracker_create:
+        reason = "Jira creation is not allowed"
     try:
-        _post_mattermost(tracker, not_created_message(tracker.env))
+        _post_mattermost(tracker, not_created_message(tracker.env, reason))
     except TrackerError as exc:
         message = f"cannot send not-created notice: {exc}"
         report.errors.append(message)
@@ -1850,7 +1856,7 @@ def _create_missing(
     if not row.ready:
         row.action = "not_ready"
         return None
-    if mode == "summary" and not summary_writes_allowed(tracker):
+    if mode == "summary" and not workflow_event(tracker.env):
         row.action = "untracked"
         return None
     if report.confirmation_error:
