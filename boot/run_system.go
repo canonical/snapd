@@ -35,6 +35,9 @@ func runSystemBootloader() (bootloader.Bootloader, error) {
 }
 
 func CurrentRunSystem() (*RunSystemState, error) {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	bl, err := runSystemBootloader()
 	if err != nil {
 		return nil, err
@@ -52,8 +55,6 @@ func SetTryRunSystem(systemLabel string) error {
 		return err
 	}
 
-	// Serialize the read/check/write against other run system and boot
-	// variable updates, as some bootloaders rewrite the whole environment.
 	modeenvLock()
 	defer modeenvUnlock()
 
