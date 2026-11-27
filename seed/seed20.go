@@ -1639,6 +1639,7 @@ func (s *seed20) LoadPreseedAssertion() (*asserts.Preseed, error) {
 		if os.IsNotExist(err) {
 			return nil, ErrNoPreseedAssertion
 		}
+		return nil, fmt.Errorf("cannot read system preseed assertion file: %v", err)
 	}
 	var preseedRef *asserts.Ref
 	for _, ref := range refs {
