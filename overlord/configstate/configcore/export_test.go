@@ -37,13 +37,14 @@ import (
 )
 
 var (
-	UpdatePiConfig       = updatePiConfig
-	SwitchHandlePowerKey = switchHandlePowerKey
-	SwitchDisableService = switchDisableService
-	UpdateKeyValueStream = updateKeyValueStream
-	AddFSOnlyHandler     = addFSOnlyHandler
-	FilesystemOnlyApply  = filesystemOnlyApply
-	UpdateHomedirsConfig = updateHomedirsConfig
+	UpdatePiConfig            = updatePiConfig
+	SwitchHandlePowerKey      = switchHandlePowerKey
+	SwitchDisableService      = switchDisableService
+	UpdateKeyValueStream      = updateKeyValueStream
+	AddFSOnlyHandler          = addFSOnlyHandler
+	FilesystemOnlyApply       = filesystemOnlyApply
+	UpdateHomedirsConfig      = updateHomedirsConfig
+	NTPConfigurationDeepEqual = ntpConfigurationDeepEqual
 
 	DoExperimentalApparmorPromptingDaemonRestart = doExperimentalApparmorPromptingDaemonRestart
 )
