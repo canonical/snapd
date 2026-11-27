@@ -65,25 +65,22 @@ func (m *ClusterManager) Ensure() error {
 		return fmt.Errorf("cannot get cluster assertion: %w", err)
 	}
 
-	tasksets, err := applyClusterState(m.state, cluster)
+	clusterChanges := inProgressClusterChanges(m.state)
+
+	// if we already have a change going on for this cluster id/subcluster
+	// pair, do not create tasks for another one, those would likely conflict
+	// with the change in progress
+	skip := func(subcluster string) bool {
+		return clusterChanges[clusterChangeRef{ClusterID: cluster.ClusterID(), Subcluster: subcluster}]
+	}
+
+	tasksets, err := applyClusterState(m.state, cluster, skip)
 	if err != nil {
 		return err
 	}
 
-	if len(tasksets) == 0 {
-		return nil
-	}
-
-	clusterChanges := inProgressClusterChanges(m.state)
-
 	for name, tasks := range tasksets {
 		ref := clusterChangeRef{ClusterID: cluster.ClusterID(), Subcluster: name}
-
-		// if we already have a change going on for this cluster id/subcluster
-		// pair, do not create another one
-		if clusterChanges[ref] {
-			continue
-		}
 
 		chg := m.state.NewChange(applyClusterSubclusterChangeKind, fmt.Sprintf("Apply subcluster %q state", name))
 		chg.Set("cluster-change-ref", ref)
