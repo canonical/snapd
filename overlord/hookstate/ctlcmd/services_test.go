@@ -617,14 +617,8 @@ func (s *servicectlSuite) TestServiceCommandsScope(c *C) {
 				Names:    []string{},
 			},
 		}, "")
-		checkInvocation(c, names, []string{"--user"}, &servicestate.Instruction{
-			Action: c,
-			Names:  names,
-			Scope:  []string{"user"},
-			Users: client.UserSelector{
-				Selector: client.UserSelectionSelf,
-			},
-		}, "")
+		// there is no current user, snapctl service commands run as root
+		checkInvocation(c, names, []string{"--user"}, nil, "cannot use --user with snapctl as it always runs as root, use --users=all instead")
 		checkInvocation(c, names, []string{"--users=all"}, &servicestate.Instruction{
 			Action: c,
 			Names:  names,
@@ -1406,6 +1400,19 @@ func (s *servicectlSuite) TestServicesWithoutContext(c *C) {
 		expectedError := fmt.Sprintf(`cannot invoke snapctl operation commands \(here "%s"\) from outside of a snap`, action)
 		c.Check(err, ErrorMatches, expectedError)
 	}
+}
+
+func (s *servicectlSuite) TestServicesUserSelfUnsupported(c *C) {
+	// servicestate.Control is not mocked here, --user must be rejected with a
+	// clear error rather than reaching servicestate without a current user
+	for _, action := range []string{"start", "stop", "restart"} {
+		_, _, _, err := ctlcmd.Run(s.mockContext, []string{action, "--user", "test-snap.user-service"}, 0, nil)
+		c.Check(err, ErrorMatches, `cannot use --user with snapctl as it always runs as root, use --users=all instead`, Commentf("action %q", action))
+	}
+	// nothing was queued
+	s.st.Lock()
+	defer s.st.Unlock()
+	c.Check(s.st.Changes(), HasLen, 0)
 }
 
 func (s *servicectlSuite) TestServicesParallelInstallsImplicit(c *C) {
