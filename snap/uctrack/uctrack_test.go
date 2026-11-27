@@ -21,12 +21,14 @@ package uctrack_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/uctrack"
 )
@@ -54,6 +56,11 @@ var tracks18 = snap.UbuntuCoreTracks{
 // tracks18Latest onboards boot base 18 for the latest track only.
 var tracks18Latest = snap.UbuntuCoreTracks{
 	"18": {"latest": "18"},
+}
+
+// tracks18Chain adds an onward pair. 18 is an input, so it is not only a target.
+var tracks18Chain = snap.UbuntuCoreTracks{
+	"18": {"latest": "18", "fips-updates": "18-fips", "18": "24"},
 }
 
 func (s *ucSuite) coreModel(base, gadget, kernel string) *asserts.Model {
@@ -142,10 +149,12 @@ func (s *ucSuite) TestSystemBootBaseApplicableNotApplicable(c *C) {
 
 func (s *ucSuite) TestResolveBootBaseNotApplicable(c *C) {
 	for _, t := range s.outOfScopeModels() {
-		resolved, err := uctrack.Resolve(t.model, "latest/stable", "", tracks18Latest)
-		c.Check(err, ErrorMatches, t.err, Commentf("%s", t.label))
-		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("%s", t.label))
-		c.Check(resolved, Equals, "", Commentf("%s", t.label))
+		for _, requested := range []string{"", "18/edge"} {
+			resolved, err := uctrack.Resolve(t.model, "latest/stable", requested, tracks18Latest)
+			c.Check(err, ErrorMatches, t.err, Commentf("%s requested %q", t.label, requested))
+			c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("%s requested %q", t.label, requested))
+			c.Check(resolved, Equals, "", Commentf("%s requested %q", t.label, requested))
+		}
 	}
 }
 
@@ -167,10 +176,12 @@ func (s *ucSuite) TestResolveBootBaseWithoutTrackMapNotApplicable(c *C) {
 	model := s.coreModel("core22", "pc=22", "pc-kernel=22")
 
 	for _, channel := range []string{"latest/stable", "22/stable", "stable"} {
-		resolved, err := uctrack.Resolve(model, channel, "", tracks18Latest)
-		c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track map for boot base 22`, Commentf("channel %q", channel))
-		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("channel %q", channel))
-		c.Check(resolved, Equals, "", Commentf("channel %q", channel))
+		for _, requested := range []string{"", "18/edge"} {
+			resolved, err := uctrack.Resolve(model, channel, requested, tracks18Latest)
+			c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track map for boot base 22`, Commentf("channel %q requested %q", channel, requested))
+			c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("channel %q requested %q", channel, requested))
+			c.Check(resolved, Equals, "", Commentf("channel %q requested %q", channel, requested))
+		}
 	}
 }
 
@@ -178,7 +189,7 @@ func (s *ucSuite) TestResolveEmptyOrNilTrackMapNotApplicable(c *C) {
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
 
 	for _, tracks := range []snap.UbuntuCoreTracks{{}, nil} {
-		resolved, err := uctrack.Resolve(model, "latest/stable", "", tracks)
+		resolved, err := uctrack.Resolve(model, "latest/stable", "18/stable", tracks)
 		c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track map for boot base 18`)
 		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true)
 		c.Check(resolved, Equals, "")
@@ -186,17 +197,36 @@ func (s *ucSuite) TestResolveEmptyOrNilTrackMapNotApplicable(c *C) {
 }
 
 func (s *ucSuite) TestResolveUnknownTrackingTrackNotApplicable(c *C) {
-	// Boot base 18 is covered, but track 20 is neither a key nor a target.
-	// The requested channel is not considered once the tracking lookup fails.
+	// The tracking track is neither an input nor a target, so the request is
+	// not considered. Resolve returns no channel.
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
 
-	for _, requested := range []string{"", "latest/stable"} {
-		resolved, err := uctrack.Resolve(model, "20/stable", requested, tracks18Latest)
-		c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track 20 for boot base 18`, Commentf("requested %q", requested))
-		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("requested %q", requested))
-		c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, false, Commentf("requested %q", requested))
-		c.Check(resolved, Equals, "", Commentf("requested %q", requested))
+	for _, t := range []struct {
+		tracking  string
+		requested string
+		track     string
+	}{
+		{"preview/stable", "", "preview"},
+		{"preview/stable", "18/edge", "preview"},
+		{"preview/stable", "latest/edge", "preview"},
+		{"20/stable", "18/edge", "20"},
+		{"24/edge", "latest/edge", "24"},
+	} {
+		resolved, err := uctrack.Resolve(model, t.tracking, t.requested, tracks18)
+		c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track `+t.track+` for boot base 18`, Commentf("tracking %q requested %q", t.tracking, t.requested))
+		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("tracking %q requested %q", t.tracking, t.requested))
+		c.Check(resolved, Equals, "", Commentf("tracking %q requested %q", t.tracking, t.requested))
 	}
+}
+
+func (s *ucSuite) TestResolveBootBaseKeyWithNoPairsNotApplicable(c *C) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+	tracks := snap.UbuntuCoreTracks{"18": {}}
+
+	resolved, err := uctrack.Resolve(model, "latest/stable", "", tracks)
+	c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track latest for boot base 18`)
+	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true)
+	c.Check(resolved, Equals, "")
 }
 
 func (s *ucSuite) TestResolveEmptyRequestedChannelRemapsTracking(c *C) {
@@ -206,7 +236,7 @@ func (s *ucSuite) TestResolveEmptyRequestedChannelRemapsTracking(c *C) {
 		tracking string
 		want     string
 	}{
-		// An omitted track means latest. The risk and branch are kept.
+		// An omitted track means latest. The risk is kept. A transition drops the branch.
 		{"latest/stable", "18/stable"},
 		{"latest/candidate", "18/candidate"},
 		{"latest/beta", "18/beta"},
@@ -215,7 +245,9 @@ func (s *ucSuite) TestResolveEmptyRequestedChannelRemapsTracking(c *C) {
 		{"beta", "18/beta"},
 		{"latest", "18/stable"},
 		{"edge", "18/edge"},
-		{"latest/stable/mybranch", "18/stable/mybranch"},
+		// A transition drops the branch.
+		{"latest/stable/mybranch", "18/stable"},
+		{"latest/beta/hotfix", "18/beta"},
 		{"fips-updates/stable", "18-fips/stable"},
 		{"fips-updates/candidate", "18-fips/candidate"},
 	} {
@@ -223,94 +255,6 @@ func (s *ucSuite) TestResolveEmptyRequestedChannelRemapsTracking(c *C) {
 		c.Assert(err, IsNil, Commentf("tracking %q", t.tracking))
 		c.Check(resolved, Equals, t.want, Commentf("tracking %q", t.tracking))
 	}
-}
-
-func (s *ucSuite) TestResolveRequestedChannelOnResolvedTrack(c *C) {
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-
-	for _, t := range []struct {
-		tracking  string
-		requested string
-		want      string
-	}{
-		// The requested risk and branch are kept. The track is the resolved
-		// tracking track, not a second lookup.
-		{"latest/stable", "18/stable", "18/stable"},
-		{"latest/stable", "18/edge", "18/edge"},
-		{"latest/stable", "18/edge/hotfix", "18/edge/hotfix"},
-		{"18/stable", "18/edge", "18/edge"},
-		{"18/stable", "18/stable", "18/stable"},
-		{"18/candidate", "18/candidate", "18/candidate"},
-		{"18-fips/stable", "18-fips/stable", "18-fips/stable"},
-		{"18-fips/beta", "18-fips/beta", "18-fips/beta"},
-		{"fips-updates/stable", "18-fips/edge", "18-fips/edge"},
-	} {
-		resolved, err := uctrack.Resolve(model, t.tracking, t.requested, tracks18)
-		c.Assert(err, IsNil, Commentf("tracking %q requested %q", t.tracking, t.requested))
-		c.Check(resolved, Equals, t.want, Commentf("tracking %q requested %q", t.tracking, t.requested))
-	}
-}
-
-func (s *ucSuite) TestResolveRequestedTrackIsNotLookedUpAgain(c *C) {
-	// latest resolves to 18, and an explicit key would send 18 on to 24.
-	// A requested track of 18 already matches the resolved track, so it is
-	// copied and not sent through the map again.
-	tracks := snap.UbuntuCoreTracks{
-		"18": {"latest": "18", "18": "24"},
-	}
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-
-	resolved, err := uctrack.Resolve(model, "latest/stable", "18/edge", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "18/edge")
-
-	// The secondary hop is not the target of latest, and repeating latest is
-	// not rewritten onto 18.
-	_, err = uctrack.Resolve(model, "latest/stable", "24/edge", tracks)
-	c.Assert(err, ErrorMatches, `cannot use requested track "24": resolved track is "18"`)
-	c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, true)
-
-	_, err = uctrack.Resolve(model, "latest/stable", "latest/stable", tracks)
-	c.Assert(err, ErrorMatches, `cannot use requested track "latest": resolved track is "18"`)
-	c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, true)
-}
-
-func (s *ucSuite) TestResolveExplicitMapKeyWinsOverTargetIdentity(c *C) {
-	// A later onboard can remap a track onward with an explicit key.
-	// An input that is only a target, such as 24, stays where it is.
-	tracks := snap.UbuntuCoreTracks{
-		"18": {"latest": "24", "18": "24"},
-	}
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-
-	resolved, err := uctrack.Resolve(model, "latest/stable", "", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "24/stable")
-
-	resolved, err = uctrack.Resolve(model, "18/stable", "", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "24/stable")
-
-	resolved, err = uctrack.Resolve(model, "24/edge", "", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "24/edge")
-
-	resolved, err = uctrack.Resolve(model, "18/stable", "24/edge", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "24/edge")
-
-	// Repeating the current channel names the old track, so it is not rewritten.
-	_, err = uctrack.Resolve(model, "latest/stable", "latest/stable", tracks)
-	c.Assert(err, ErrorMatches, `cannot use requested track "latest": resolved track is "24"`)
-	c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, true)
-
-	_, err = uctrack.Resolve(model, "18/stable", "18/stable", tracks)
-	c.Assert(err, ErrorMatches, `cannot use requested track "18": resolved track is "24"`)
-	c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, true)
-
-	_, err = uctrack.Resolve(model, "18/stable", "18/edge", tracks)
-	c.Assert(err, ErrorMatches, `cannot use requested track "18": resolved track is "24"`)
-	c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, true)
 }
 
 func (s *ucSuite) TestResolveLatestTargetRendersImplicitTrack(c *C) {
@@ -325,7 +269,8 @@ func (s *ucSuite) TestResolveLatestTargetRendersImplicitTrack(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "stable")
 
-	// A risk-only requested channel has an omitted track, which means latest.
+	// A risk-only request has an omitted track, which means latest. latest is
+	// only a target here, so the requested risk and branch are kept.
 	resolved, err = uctrack.Resolve(model, "18/stable", "edge", tracks)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "edge")
@@ -334,16 +279,16 @@ func (s *ucSuite) TestResolveLatestTargetRendersImplicitTrack(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "beta/hotfix")
 
-	// The request names 18, and the target is latest, so it is not rewritten
-	// to stable.
-	_, err = uctrack.Resolve(model, "18/stable", "18/stable", tracks)
-	c.Assert(err, ErrorMatches, `cannot use requested track "18": resolved track is "latest"`)
-	c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, true)
+	// 18 is an input, so the request follows 18 to latest and drops the branch.
+	resolved, err = uctrack.Resolve(model, "18/stable", "18/stable", tracks)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "stable")
 }
 
 func (s *ucSuite) TestResolveNilModel(c *C) {
 	_, err := uctrack.Resolve(nil, "latest/stable", "", tracks18Latest)
 	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
+	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, false)
 }
 
 func (s *ucSuite) TestResolveInvalidTrackingChannel(c *C) {
@@ -351,45 +296,126 @@ func (s *ucSuite) TestResolveInvalidTrackingChannel(c *C) {
 
 	_, err := uctrack.Resolve(model, "foo/bar/baz/quux", "", tracks18Latest)
 	c.Check(err, ErrorMatches, `internal error: cannot parse tracking channel: channel name has too many components: foo/bar/baz/quux`)
+	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, false)
 }
 
 func (s *ucSuite) TestResolveInvalidRequestedChannel(c *C) {
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
 
-	_, err := uctrack.Resolve(model, "latest/stable", "foo/bar/baz/quux", tracks18Latest)
+	resolved, err := uctrack.Resolve(model, "latest/stable", "foo/bar/baz/quux", tracks18Latest)
 	c.Check(err, ErrorMatches, `internal error: cannot parse requested channel: channel name has too many components: foo/bar/baz/quux`)
 	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, false)
-	c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, false)
+	c.Check(resolved, Equals, "")
 }
 
-func (s *ucSuite) TestResolveRequestedTrackDiffersFromResolved(c *C) {
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+// logNone means the resolution is not logged. logIgnored means the requested
+// track is neither an input nor a target. logRewritten means the tracking
+// track is already a target and the requested track is an input.
+const (
+	logNone logKind = iota
+	logIgnored
+	logRewritten
+)
 
-	for _, t := range []struct {
-		tracking       string
-		requested      string
-		requestedTrack string
-		resolvedTrack  string
-	}{
-		// Repeating the tracking channel is a request for that track. It is not
-		// rewritten onto the target. An omitted track means latest.
-		{"latest/stable", "latest/stable", "latest", "18"},
-		{"latest/stable", "stable", "latest", "18"},
-		{"latest", "latest/stable", "latest", "18"},
-		{"latest/stable/mybranch", "stable/mybranch", "latest", "18"},
-		{"fips-updates/stable", "fips-updates/stable", "fips-updates", "18-fips"},
-		// A different risk or branch on the old track is also a switch.
-		{"latest/stable", "latest/edge", "latest", "18"},
-		{"latest/stable", "stable/mybranch", "latest", "18"},
-		{"latest/stable", "fips-updates/stable", "fips-updates", "18"},
-		{"latest/stable", "other/stable", "other", "18"},
-		{"latest/stable", "20/stable", "20", "18"},
-		{"fips-updates/stable", "18/stable", "18", "18-fips"},
-	} {
-		resolved, err := uctrack.Resolve(model, t.tracking, t.requested, tracks18)
-		c.Assert(err, ErrorMatches, `cannot use requested track "`+t.requestedTrack+`": resolved track is "`+t.resolvedTrack+`"`, Commentf("tracking %q requested %q", t.tracking, t.requested))
-		c.Check(errors.Is(err, uctrack.ErrRequestedChannelProhibited), Equals, true, Commentf("tracking %q requested %q", t.tracking, t.requested))
-		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, false, Commentf("tracking %q requested %q", t.tracking, t.requested))
-		c.Check(resolved, Equals, "", Commentf("tracking %q requested %q", t.tracking, t.requested))
+type logKind int
+
+type resolveCase struct {
+	id        string
+	tracking  string
+	requested string
+	want      string
+	log       logKind
+}
+
+func (s *ucSuite) checkResolveCases(c *C, tracks snap.UbuntuCoreTracks, cases []resolveCase) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	for _, t := range cases {
+		logbuf.Reset()
+		resolved, err := uctrack.Resolve(model, t.tracking, t.requested, tracks)
+		comment := Commentf("%s tracking %q requested %q", t.id, t.tracking, t.requested)
+		c.Assert(err, IsNil, comment)
+		c.Check(resolved, Equals, t.want, comment)
+		switch t.log {
+		case logNone:
+			c.Check(logbuf.String(), Equals, "", comment)
+		case logIgnored:
+			c.Check(logbuf.String(), Matches, fmt.Sprintf(`(?s).*ignoring requested channel "%s", using "%s".*`, t.requested, t.want), comment)
+		case logRewritten:
+			c.Check(logbuf.String(), Matches, fmt.Sprintf(`(?s).*rewrote requested channel "%s" to "%s".*`, t.requested, t.want), comment)
+		}
 	}
+}
+
+func (s *ucSuite) TestResolveSimpleMap(c *C) {
+	s.checkResolveCases(c, tracks18, []resolveCase{
+		{"S1", "latest/stable", "", "18/stable", logNone},
+		{"S2", "latest/stable", "latest", "18/stable", logNone},
+		{"S3", "latest/stable", "stable", "18/stable", logNone},
+		{"S4", "latest/stable", "latest/stable", "18/stable", logNone},
+		{"S5", "latest/beta/hotfix", "", "18/beta", logNone},
+		{"S6", "latest/stable", "latest/edge", "18/edge", logNone},
+		{"S7", "latest/stable", "edge", "18/edge", logNone},
+		{"S8", "latest/stable", "fips-updates/beta", "18-fips/beta", logNone},
+		{"S9", "latest/beta", "fips-updates/stable", "18-fips/stable", logNone},
+		{"S10", "latest/stable", "latest/beta/hotfix", "18/beta", logNone},
+		{"S11", "latest/stable", "fips-updates/beta/hotfix", "18-fips/beta", logNone},
+		{"S12", "latest/stable", "18/edge", "18/edge", logNone},
+		{"S13", "latest/stable", "18/edge/hotfix", "18/edge/hotfix", logNone},
+		{"S14", "latest/beta", "18/stable", "18/stable", logNone},
+		{"S15", "latest/stable", "18", "18/stable", logNone},
+		{"S16", "latest/stable", "18-fips/stable", "18-fips/stable", logNone},
+		{"S17", "latest/beta", "preview/edge", "18/beta", logIgnored},
+		{"S18", "latest/beta/hotfix", "preview/edge", "18/beta", logIgnored},
+		{"S19", "latest/stable", "24/stable", "18/stable", logIgnored},
+		{"S20", "fips-updates/candidate", "", "18-fips/candidate", logNone},
+		{"S21", "fips-updates/candidate", "latest/edge", "18/edge", logNone},
+		{"S22", "18/stable", "", "18/stable", logNone},
+		{"S23", "18/edge/hotfix", "", "18/edge/hotfix", logNone},
+		{"S24", "18/stable", "18/edge", "18/edge", logNone},
+		{"S25", "18/stable", "18/beta/hotfix", "18/beta/hotfix", logNone},
+		{"S26", "18/edge/hotfix", "18/stable", "18/stable", logNone},
+		{"S27", "18/stable", "18-fips/beta", "18-fips/beta", logNone},
+		{"S28", "18/stable", "latest/edge", "18/edge", logRewritten},
+		{"S29", "18/stable", "edge", "18/edge", logRewritten},
+		{"S30", "18/stable", "latest/beta/hotfix", "18/beta", logRewritten},
+		{"S31", "18/edge/hotfix", "latest/stable", "18/stable", logRewritten},
+		{"S32", "18/stable", "fips-updates/beta", "18-fips/beta", logRewritten},
+		{"S33", "18/stable", "preview/edge", "18/stable", logIgnored},
+		{"S34", "18/edge/hotfix", "preview/stable", "18/edge/hotfix", logIgnored},
+		{"S35", "18/stable", "24/stable", "18/stable", logIgnored},
+		{"S36", "18-fips/stable", "", "18-fips/stable", logNone},
+		{"S37", "18-fips/beta", "18/edge", "18/edge", logNone},
+	})
+}
+
+func (s *ucSuite) TestResolveChainMap(c *C) {
+	s.checkResolveCases(c, tracks18Chain, []resolveCase{
+		{"C1", "latest/stable", "", "18/stable", logNone},
+		{"C2", "latest/beta/hotfix", "", "18/beta", logNone},
+		{"C3", "latest/stable", "18/edge", "24/edge", logNone},
+		{"C4", "latest/stable", "18/edge/hotfix", "24/edge", logNone},
+		{"C5", "latest/stable", "24/edge", "24/edge", logNone},
+		{"C6", "latest/stable", "24/edge/hotfix", "24/edge/hotfix", logNone},
+		{"C7", "latest/stable", "latest/edge", "18/edge", logNone},
+		{"C8", "18/stable", "", "24/stable", logNone},
+		{"C9", "18/beta/hotfix", "", "24/beta", logNone},
+		{"C10", "18/stable", "18/edge", "24/edge", logNone},
+		{"C11", "18/stable", "24/edge", "24/edge", logNone},
+		{"C12", "18/stable", "latest/edge", "18/edge", logNone},
+		{"C13", "18/beta", "fips-updates/beta", "18-fips/beta", logNone},
+		{"C14", "18/stable", "preview/edge", "24/stable", logIgnored},
+		{"C15", "24/stable", "", "24/stable", logNone},
+		{"C16", "24/edge/hotfix", "", "24/edge/hotfix", logNone},
+		{"C17", "24/stable", "18/stable", "24/stable", logRewritten},
+		{"C18", "24/stable", "18/beta/hotfix", "24/beta", logRewritten},
+		{"C19", "24/stable", "latest/edge", "18/edge", logRewritten},
+		{"C20", "24/stable", "fips-updates/beta", "18-fips/beta", logRewritten},
+		{"C21", "24/stable", "24/edge", "24/edge", logNone},
+		{"C22", "24/stable", "18-fips/stable", "18-fips/stable", logNone},
+		{"C23", "24/stable", "preview/edge", "24/stable", logIgnored},
+		{"C24", "24/beta/hotfix", "latest/stable", "18/stable", logRewritten},
+	})
 }
