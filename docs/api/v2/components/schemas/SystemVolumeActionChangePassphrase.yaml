@@ -27,9 +27,8 @@ properties:
   keyslots:
     type: array
     description: |-
-      Target keyslots to update. Each target must exist and have
-      auth-mode `passphrase`. If omitted, targets the following
-      keyslots used during installation:
+      Target keyslots to update. Each target must exist and have auth-mode `passphrase`. 
+      If omitted or empty, targets the following keyslots used during installation:
       - container-role `system-data`, name `default`;
       - container-role `system-data`, name `default-fallback`; and
       - container-role `system-save`, name `default-fallback`.

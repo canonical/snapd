@@ -36,9 +36,8 @@ properties:
   keyslots:
     type: array
     description: |-
-      Target keyslots to replace. Each target must exist and have
-      type `platform` and use the TPM2 platform. If omitted,
-      targets the following keyslots used during installation:
+      Target keyslots to replace. Each target must exist and have type `platform` and use the TPM2 platform. 
+      If omitted or empty, targets the following keyslots used during installation:
       - container-role `system-data`, name `default`
       - container-role `system-data`, name `default-fallback`
       - container-role `system-save`, name `default-fallback`

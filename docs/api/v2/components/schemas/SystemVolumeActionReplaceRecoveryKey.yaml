@@ -24,8 +24,7 @@ properties:
   keyslots:
     type: array
     description: |-
-      Target keyslots to replace. If omitted, targets the
-      following keyslots:
+      Target keyslots to replace. If omitted or empty, targets the following keyslots:
       - container-role `system-data`, name `default-recovery`; and
       - container-role `system-save`, name `default-recovery`.
       Each target must already exist and have type `recovery`;
