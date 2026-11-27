@@ -56,6 +56,7 @@ module github.com/snapcore/snap-bootstrap
 go 1.18
 
 require	github.com/snapcore/snapd $commit
+replace github.com/snapcore/secboot => github.com/valentindavid/secboot v0.0.0-20261109121954-456587af7d07
 EOF
 if [ -n "${TEST_BUILD-}" ]; then
     # Use local code for test builds

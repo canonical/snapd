@@ -228,7 +228,7 @@ EOF
     if [ -n "$passphrase" ]; then
         tests.nested create-vm core --keep-firmware-state --passphrase "$passphrase"
     elif [ -n "$pin" ]; then
-        tests.nested create-vm core --keep-firmware-state --passphrase "$pin"
+        tests.nested create-vm core --keep-firmware-state --pin "$pin"
     else
         tests.nested create-vm core --keep-firmware-state
     fi
