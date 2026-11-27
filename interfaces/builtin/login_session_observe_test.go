@@ -82,7 +82,10 @@ func (s *LoginSessionObserveSuite) TestAppArmor(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{SNAP_COREUTIL_DIRS}who")
+
+	snippet := apparmorSpec.SnippetForTag("snap.other.app2")
+	c.Assert(snippet, testutil.Contains, "@{SNAP_COREUTIL_DIRS}who")
+	c.Assert(snippet, testutil.Contains, "member=PrepareFor{Shutdown,Sleep}")
 }
 
 func (s *LoginSessionObserveSuite) TestInterfaces(c *C) {
