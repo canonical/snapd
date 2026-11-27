@@ -13,6 +13,10 @@ systems: [ubuntu-22.04-64]
 environment:
     SNAPD_SRC/deb:  "deb"
     SNAPD_SRC/core: "core"
+    # This variant must re-exec into the updated Core snap, even when the
+    # invoking run-spread mode disables re-exec by default.
+    SNAP_REEXEC/core: "1"
+    MODIFY_CORE_SNAP_FOR_REEXEC/core: "1"
 
 skip:
     - reason: This test needs snapd deb built from local
@@ -30,18 +34,22 @@ prepare: |
 
     # Install deb + core before introduction of snapd auto-install
     # on classic systems.
-    # deb:  snapd | Aug 2024 | 2.63+22.04ubuntu0.1            | http://archive.ubuntu.com/ubuntu/pool/main/s/snapd/2.63+22.04ubuntu0.1_amd64.deb
-    # deb:  snapd | Apr 2022 | 2.55.3+22.04                   | http://archive.ubuntu.com/ubuntu/pool/main/s/snapd/2.55.3+22.04_amd64.deb
+    # deb:  snapd | Aug 2024 | 2.63+22.04ubuntu0.1            | https://snapshot.ubuntu.com/ubuntu/20240901T000000Z/pool/main/s/snapd/snapd_2.63+22.04ubuntu0.1_amd64.deb
+    # deb:  snapd | Apr 2022 | 2.55.3+22.04                   | https://snapshot.ubuntu.com/ubuntu/20220430T000000Z/pool/main/s/snapd/snapd_2.55.3+22.04_amd64.deb
     # snap: core  | Jun 2024 | 16-2.61.4-20240607 (rev 17200) | https://snapcraft.io/core/releases
     
     # 'deb' : transition snapd deb to re-exec from snapd snap
     # 'core': transition re-exec from snapd in core snap to re-exec from snapd snap
     if [ "$SNAPD_SRC" = "deb" ]; then
         # core < deb, exec snapd deb
-        apt install -y --allow-downgrades snapd=2.63+22.04ubuntu0.1
+        wget -q -O /tmp/snapd_2.63+22.04ubuntu0.1_amd64.deb \
+            https://snapshot.ubuntu.com/ubuntu/20240901T000000Z/pool/main/s/snapd/snapd_2.63+22.04ubuntu0.1_amd64.deb
+        apt install -y --allow-downgrades /tmp/snapd_2.63+22.04ubuntu0.1_amd64.deb
     else
         # core => deb, re-exec snapd from core snap
-        apt install -y --allow-downgrades snapd=2.55.3+22.04
+        wget -q -O /tmp/snapd_2.55.3+22.04_amd64.deb \
+            https://snapshot.ubuntu.com/ubuntu/20220430T000000Z/pool/main/s/snapd/snapd_2.55.3+22.04_amd64.deb
+        apt install -y --allow-downgrades /tmp/snapd_2.55.3+22.04_amd64.deb
     fi
     snap install core --revision=17200 # 16-2.61.4-20240607
 
@@ -86,7 +94,7 @@ execute: |
         # Install snaps after updating snapd deb to exercise the post PR14173 logic for installing snapd snap.
         # The first snap install will trigger the snapd auto-install.
         install_snaps
-        expected_changes_after_mark="3"
+        expected_changes_after_mark="4"
         expected_snap_with_snapd_prereq="firefox"
     else
         echo "Install snaps, update core snap and trigger auto-install of snapd with install of hello-world snap"
