@@ -31,7 +31,6 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -39,14 +38,6 @@ import (
 type execSuite struct{}
 
 var _ = Suite(&execSuite{})
-
-func (s *execSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-}
-
-func (s *execSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-}
 
 func (s *execSuite) TestRunAndWaitRunsAndWaits(c *C) {
 	buf, err := osutil.RunAndWait([]string{"sh", "-c", "echo hello; sleep .1"}, nil, time.Second, &tomb.Tomb{})

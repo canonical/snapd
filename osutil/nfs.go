@@ -23,8 +23,12 @@ func IsHomeUsingRemoteFS() (bool, error) {
 	return isHomeUsingRemoteFS()
 }
 
-func SnapDirsUnderNFSMounts() (bool, error) {
-	return snapDirsUnderNFSMounts()
+// SnapDirsUnderNFSMounts checks if there are any snap user data directories
+// in NFS filesystems. The directories to check are described by dataHomeGlobs,
+// a list of glob patterns matching snap data directories under user home
+// directories.
+func SnapDirsUnderNFSMounts(dataHomeGlobs []string) (bool, error) {
+	return snapDirsUnderNFSMounts(dataHomeGlobs)
 }
 
 // MockIsHomeUsingRemoteFS mocks the real implementation of osutil.IsHomeUsingRemoteFS.
@@ -38,7 +42,7 @@ func MockIsHomeUsingRemoteFS(new func() (bool, error)) (restore func()) {
 	}
 }
 
-func MockSnapDirsUnderNFSMounts(new func() (bool, error)) (restore func()) {
+func MockSnapDirsUnderNFSMounts(new func([]string) (bool, error)) (restore func()) {
 	old := snapDirsUnderNFSMounts
 	snapDirsUnderNFSMounts = new
 	return func() {

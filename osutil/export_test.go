@@ -242,14 +242,6 @@ func ReadGoBuildID(fname string) (string, error) {
 	return readGenericBuildID(fname, goElfNote, goHdrType)
 }
 
-func MockAllDataHomeGlobs(f func() []string) func() {
-	oldAllDataHomeGlobs := dirsAllDataHomeGlobs
-	dirsAllDataHomeGlobs = f
-	return func() {
-		dirsAllDataHomeGlobs = oldAllDataHomeGlobs
-	}
-}
-
 func MockFChmod(f func(file *os.File, mode os.FileMode) error) (restore func()) {
 	return testutil.Mock(&fChmod, f)
 }
