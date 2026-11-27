@@ -64,9 +64,6 @@ func init() {
 	// disk-reservation.size
 	addWithStateHandler(validateDiskSpaceReservation, nil, validateOnly)
 
-	// legacy experimental disk space flags
-	addWithStateHandler(nil, handleLegacyDiskSpaceFeatures, nil)
-
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, coreOnly)
 

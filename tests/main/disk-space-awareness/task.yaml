@@ -2,7 +2,8 @@ summary: Check that basic snap operation are aware of low disk space.
 
 details: |
   Check that operations such as snap installation or snap removal (with an
-  automatic snapshot) error out early if there is not enough disk space.
+  automatic snapshot) error out early if there is not enough disk space when
+  disk-reservation.size is configured.
 
 # this test is remounts /var/lib/snapd which is too intrusive for core.
 systems: [-ubuntu-core-*]
@@ -59,10 +60,8 @@ execute: |
     df -B1048576 "$TMPFSMOUNT" | tail -1 | awk '{print $3}'
   }
 
-  echo "Enabling experimental disk space checks"
-  snap set system experimental.check-disk-space-install=true
-  snap set system experimental.check-disk-space-remove=true
-  snap set system experimental.check-disk-space-refresh=true
+  echo "Enabling disk space checks with a 5 MiB reservation"
+  snap set system disk-reservation.size=5M
 
   # test-snapd-sh has an implicit "core" base; make sure core is installed
   # while there is enough disk space, as it is not preseeded on all systems
