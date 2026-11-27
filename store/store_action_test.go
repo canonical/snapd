@@ -1256,6 +1256,17 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 }
 
 func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
+	for _, formats := range [][]string{
+		{"snap-1-1-xdelta3", "xdelta3"},
+		{"xdelta3"},
+		{"snap-1-1-xdelta3"},
+		{"xdelta3", "snap-1-1-xdelta3"},
+	} {
+		s.testSnapActionWithDeltas(c, formats)
+	}
+}
+
+func (s *storeActionSuite) testSnapActionWithDeltas(c *C, formats []string) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
@@ -1265,7 +1276,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, "snap-1-1-xdelta3,xdelta3")
+		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, strings.Join(formats, ","))
 		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
@@ -1320,7 +1331,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 	cfg := store.Config{
 		StoreBaseURL: mockServerURL,
 	}
-	dauthCtx := &testDauthContext{c: c, device: s.device}
+	dauthCtx := &testDauthContext{c: c, device: s.device, deltaFormats: formats}
 	sto := store.New(&cfg, dauthCtx)
 
 	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
