@@ -80,6 +80,12 @@ const homeConnectedPlugAppArmor = `
 ###PROMPT### owner /run/user/[0-9]*/gvfs/{,**} r,
 ###PROMPT### owner /run/user/[0-9]*/gvfs/*/**  w,
 
+# Allow access to kio-fuse mounts for files owned by the user (including hidden
+# files; only allow writes to files, not the mount point).
+# LP:2174531
+###PROMPT### owner /run/user/[0-9]*/kio-fuse{,-*}/{,**} r,
+###PROMPT### owner /run/user/[0-9]*/kio-fuse{,-*}/*/**  w,
+
 # Disallow writes to the well-known directory included in
 # the user's PATH on several distributions
 audit deny @{HOME}/bin/{,**} wl,
