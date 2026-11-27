@@ -380,12 +380,30 @@ func (iw *infoWriter) maybePrintBase() {
 }
 
 func (iw *infoWriter) maybePrintBuildBase() {
-	// only the installed kernel reports a build-base
-	if !iw.verbose || iw.localSnap == nil || iw.localSnap.Type != string(snap.TypeKernel) {
+	var csnap *client.Snap
+	// must be verbose for the build-base
+	if !iw.verbose {
 		return
 	}
-	if iw.localSnap.BuildBase != "" {
-		fmt.Fprintf(iw, "build-base:\t%s\n", iw.localSnap.BuildBase)
+
+	// only the installed or a local kernel reports a build-base
+	switch {
+	case iw.localSnap != nil:
+		csnap = iw.localSnap
+	case iw.diskSnap != nil:
+		csnap = iw.diskSnap
+	default:
+		return
+	}
+
+	// ensure the type is kernel before printing build-base
+	if csnap.Type != string(snap.TypeKernel) {
+		return
+	}
+
+	// only more recent kernel snaps report this
+	if csnap.BuildBase != "" {
+		fmt.Fprintf(iw, "build-base:\t%s\n", csnap.BuildBase)
 	}
 }
 

@@ -639,6 +639,7 @@ func (s *infoSuite) TestMaybePrintBuildBase(c *check.C) {
 		comment:  "kernel from a file",
 		verbose:  true,
 		diskSnap: kernel("core24"),
+		expected: "build-base:\tcore24\n",
 	}} {
 		comment := check.Commentf("%s", t.comment)
 
