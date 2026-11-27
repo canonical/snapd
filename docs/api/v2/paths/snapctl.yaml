@@ -128,15 +128,14 @@ post:
             systemModeEncrypted:
               summary: System mode with snapd-managed storage encryption
               description: |-
-                The system-mode command includes `storage-encrypted: managed`
-                in its YAML stdout when the FDE state managed by snapd exists and contains at least one primary key.
-                If that state is absent or contains no primary keys, the line
-                is omitted.
-                This detection does not support two
-                legacy encrypted systems without a primary key:
+                The system-mode command includes `storage-encrypted: managed` in
+                its YAML stdout when the FDE state managed by snapd exists and
+                contains at least one primary key. If that state is absent or
+                contains no primary keys, the line is omitted. This detection
+                does not support two legacy encrypted systems without a primary
+                key:
                 - systems using v1 TPM keys because an older snapd was used during installation; and
-                - systems whose older kernel snap-bootstrap does not provide
-                a primary key in the keyring.
+                - systems whose older kernel snap-bootstrap does not provide a primary key in the keyring.
                 This line does not indicate whether encryption is TPM2-backed.
               value:
                 type: sync
