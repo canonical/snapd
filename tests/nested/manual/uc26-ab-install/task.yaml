@@ -1,0 +1,23 @@
+summary: Install in A/B mode
+
+details: |
+  Install in A/B mode. A place-holder for now.
+
+systems:
+  - ubuntu-26*
+
+environment:
+  NESTED_INSTALL_AB_MODE: enabled
+  NESTED_INSTALL_INITRD/install_in_initrd: enabled
+  NESTED_INSTALL_INITRD/install_mode: disabled
+
+prepare: |
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  if [ "${NESTED_INSTALL_INITRD-}" = enabled ]; then
+    remote.exec cat /proc/cmdline | MATCH "snapd_recovery_mode=install"
+  else
+    remote.exec cat /proc/cmdline | MATCH "snapd_recovery_mode=run"
+  fi

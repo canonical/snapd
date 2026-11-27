@@ -232,6 +232,19 @@ func generateInitramfsMounts() (err error) {
 }
 
 func canInstallAndRunAtOnce(mst *initramfsMountsState, model *asserts.Model) (bool, error) {
+	installInitrdCredential, err := os.ReadFile(filepath.Join(osGetenv("CREDENTIALS_DIRECTORY"), "snapd.debug.install-initrd"))
+	switch {
+	case os.IsNotExist(err):
+		// That is fine.
+	case err != nil:
+		logger.Noticef("warning: cannot read credential snapd.debug.install-initrd: %v", err)
+	case err != nil:
+		if bytes.Equal(installInitrdCredential, []byte("disabled")) {
+			logger.Debugf("credential told use not to install in initrd")
+			return false, nil
+		}
+	}
+
 	// If kernel has fde-setup hook, then we should also have fde-setup in
 	// initramfs, otherwise we cannot install from the initramfs.
 	kernelPath := filepath.Join(boot.InitramfsRunMntDir, "kernel")

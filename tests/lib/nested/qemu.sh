@@ -245,6 +245,14 @@ nested_create_vm_service() {
         echo -n "${NESTED_FDE_PASSWORD}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
     fi
 
+    if [ "${NESTED_INSTALL_AB_MODE+set}" = set ]; then
+        echo -n "${NESTED_INSTALL_AB_MODE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.debug.install-ab"
+    fi
+
+    if [ "${NESTED_INSTALL_INITRD+set}" = set ]; then
+        echo -n "${NESTED_INSTALL_INITRD}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.debug.install-initrd"
+    fi
+
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
     # make sure we start with clean log file
