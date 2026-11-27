@@ -23,9 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -182,14 +184,16 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnapSameRevisionStillRecordsPrevio
 	// same-revision refresh: target revision equals snapst.Current.
 	// previous-kernel-rev is still recorded unconditionally; safety is
 	// enforced by the consumers (discard-old-kernel-snap-setup and its
-	// undo), not by withholding this value.
+	// undo), not by withholding this value. SetupKernelSnap also gets
+	// SetupKernelRegenerate here.
 	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "mykernel",
 			Revision: snap.R(33),
 		},
-		SnapPath: testSnap,
+		SnapPath:                        testSnap,
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -209,7 +213,9 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnapSameRevisionStillRecordsPrevio
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "prepare-kernel-snap",
+			op:           "prepare-kernel-snap",
+			currentComps: []*snap.ComponentSideInfo{},
+			regenerate:   true,
 		},
 	})
 }
@@ -228,15 +234,16 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnapSameRevisionDoesNotRemove(
 		UserID:  1,
 	})
 
-	// same-revision refresh: do's SetupKernelSnap was a no-op on the live
-	// tree, so undo must not remove it.
+	// same-revision refresh: do's SetupKernelSnap uses SetupKernelRegenerate,
+	// not a fresh install, so undo must not remove the live tree.
 	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "mykernel",
 			Revision: snap.R(33),
 		},
-		SnapPath: testSnap,
+		SnapPath:                        testSnap,
+		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -259,8 +266,94 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnapSameRevisionDoesNotRemove(
 	// no remove-kernel-snap-setup: that would delete the live/mounted tree
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "prepare-kernel-snap",
+			op:           "prepare-kernel-snap",
+			currentComps: []*snap.ComponentSideInfo{},
+			regenerate:   true,
 		},
+	})
+}
+
+func (s *setupKernelSnapSuite) TestSetupKernelSnapSameRevisionRequiresPreUpdateComponents(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "mykernel", Revision: snap.R(33)},
+		}),
+		Current: snap.R(33),
+	})
+	t := s.state.NewTask("prepare-kernel-snap", "test missing component snapshot")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "mykernel", Revision: snap.R(33)},
+	})
+	chg := s.state.NewChange("refresh", "refresh kernel")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Check(chg.Err(), ErrorMatches, `(?s).*missing pre-update kernel-modules components.*`)
+	s.state.Unlock()
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+}
+
+func (s *setupKernelSnapSuite) TestSetupKernelSnapPreservesUnlinkedComponentsBeforeKmodSetup(c *C) {
+	const name = "mykernel"
+	const compName = "kmod"
+	rev := snap.R(33)
+	oldComp := snap.NewComponentSideInfo(naming.NewComponentRef(naming.SnapName(name), compName), snap.R(7))
+	info := createTestSnapInfoForComponents(c, name, rev, map[string]string{compName: "kernel-modules"})
+	snaptest.MockSnapInstance(c, name, "name: mykernel\nversion: 1.0\ntype: kernel\ncomponents:\n  kmod:\n    type: kernel-modules\n", &info.SideInfo)
+
+	s.state.Lock()
+	setStateWithComponents(s.state, name, rev, []*sequence.ComponentState{
+		sequence.NewComponentState(oldComp, snap.KernelModulesComponent),
+	})
+	setup := s.state.NewTask("nop", "snap setup")
+	setup.Set("snap-setup", createTestSnapSetup(info, snapstate.Flags{}))
+	unlink := s.state.NewTask("unlink-current-component", "unlink old component")
+	unlink.Set("snap-setup-task", setup.ID())
+	unlink.Set("component-setup", snapstate.NewComponentSetup(oldComp, snap.KernelModulesComponent, ""))
+	unlink.WaitFor(setup)
+	prepare := s.state.NewTask("prepare-kernel-snap", "regenerate kernel tree")
+	prepare.Set("snap-setup-task", setup.ID())
+	prepare.WaitFor(unlink)
+	failure := s.state.NewTask("error-trigger", "fail before preparing kernel modules components")
+	failure.WaitFor(prepare)
+	kmodSetup := s.state.NewTask("prepare-kernel-modules-components", "prepare new components")
+	kmodSetup.Set("snap-setup-task", setup.ID())
+	kmodSetup.WaitFor(failure)
+	chg := s.state.NewChange("refresh", "refresh kernel component")
+	for _, task := range []*state.Task{setup, unlink, prepare, failure, kmodSetup} {
+		chg.AddTask(task)
+	}
+	s.state.Unlock()
+
+	for i := 0; i < 10; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(chg.Err(), ErrorMatches, `(?s).*fail before preparing kernel modules components.*`)
+	c.Check(prepare.Status(), Equals, state.UndoneStatus)
+	c.Check(unlink.Status(), Equals, state.UndoneStatus)
+	c.Check(kmodSetup.Status(), Equals, state.HoldStatus)
+	var snapsup snapstate.SnapSetup
+	c.Assert(setup.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.PreUpdateKernelModuleComponents, DeepEquals, []*snap.ComponentSideInfo{oldComp})
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
+	c.Check(snapst.CurrentComponentSideInfo(oldComp.Component), DeepEquals, oldComp)
+	s.state.Unlock()
+
+	// Undo relinks the old component, but does not regenerate the tree.
+	// The earlier regeneration must therefore have used the saved old set.
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{op: "unlink-component", path: snap.ComponentMountDir(compName, oldComp.Revision, name)},
+		{op: "prepare-kernel-snap", currentComps: []*snap.ComponentSideInfo{oldComp}, regenerate: true},
+		{op: "link-component", path: snap.ComponentMountDir(compName, oldComp.Revision, name)},
 	})
 }
 
