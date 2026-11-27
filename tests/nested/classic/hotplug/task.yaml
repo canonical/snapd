@@ -14,10 +14,6 @@ details: |
     qemu can be scripted to dynamically attach devices to the running virtual
     machine.
 
-systems:
-  # FIXME
-  - -ubuntu-26*
-
 prepare: |
     echo "Install snapd.deb in the nested vm"
     remote.push "${GOHOME}"/snapd_*.deb
