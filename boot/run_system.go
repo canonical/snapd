@@ -20,16 +20,10 @@ package boot
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
 )
-
-const BootedRunSystemMarker = "booted-run-seed"
 
 type RunSystemState struct {
 	Current string
@@ -71,40 +65,6 @@ func SetTryRunSystem(systemLabel string) error {
 		return bl.SetBootVars(map[string]string{"try_run_system": ""})
 	}
 	return bl.SetBootVars(map[string]string{"try_run_system": systemLabel})
-}
-
-func BootedRunSystem() (string, error) {
-	marker := filepath.Join(dirs.SnapRunDir, BootedRunSystemMarker)
-	data, err := os.ReadFile(marker)
-	if err != nil {
-		return "", err
-	}
-	label := strings.TrimSpace(string(data))
-	if err := asserts.IsValidSystemLabel(label); err != nil {
-		return "", err
-	}
-	return label, nil
-}
-
-func PromoteTriedRunSystem(systemLabel string) error {
-	if err := asserts.IsValidSystemLabel(systemLabel); err != nil {
-		return err
-	}
-	booted, err := BootedRunSystem()
-	if err != nil {
-		return fmt.Errorf("cannot identify booted run system: %v", err)
-	}
-	if booted != systemLabel {
-		return fmt.Errorf("cannot promote run system %q while booted into %q", systemLabel, booted)
-	}
-	bl, err := runSystemBootloader()
-	if err != nil {
-		return err
-	}
-	return bl.SetBootVars(map[string]string{
-		"run_system":     systemLabel,
-		"try_run_system": "",
-	})
 }
 
 func ClearTryRunSystem(systemLabel string) error {
