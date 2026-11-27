@@ -471,3 +471,31 @@ validation: unproven
 `)
 
 }
+
+func (s *assertsSuite) TestAssertsFindManyRemoteNonPrimaryKeyFilter(c *check.C) {
+	var assertFnCalled int
+	s.mockAssertionFn = func(at *asserts.AssertionType, headers []string, user *auth.UserState) (asserts.Assertion, error) {
+		assertFnCalled++
+		c.Assert(at.Name, check.Equals, "account")
+		c.Assert(headers, check.DeepEquals, []string{"can0nical"})
+		return assertstest.NewAccount(s.StoreSigning, "some-developer", nil, ""), nil
+	}
+
+	for _, t := range []struct {
+		username string
+		count    int
+	}{
+		{"other-developer", 0},
+		{"some-developer", 1},
+	} {
+		req, err := http.NewRequest("GET", "/v2/assertions/account?remote=true&account-id=can0nical&username="+t.username, nil)
+		c.Assert(err, check.IsNil)
+		s.asUserAuth(c, req)
+
+		rec := httptest.NewRecorder()
+		s.serveHTTP(c, rec, req)
+		c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
+		c.Check(rec.Header().Get("X-Ubuntu-Assertions-Count"), check.Equals, strconv.Itoa(t.count), check.Commentf("username %q", t.username))
+	}
+	c.Check(assertFnCalled, check.Equals, 2)
+}

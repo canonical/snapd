@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -129,8 +130,26 @@ func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[str
 	if err != nil {
 		return nil, err
 	}
+	// the store is queried only by primary key, apply the other
+	// headers as filters like a local search would
+	if !matchesNonPrimaryKeyHeaders(as, headers) {
+		return nil, nil
+	}
 
 	return []asserts.Assertion{as}, nil
+}
+
+func matchesNonPrimaryKeyHeaders(a asserts.Assertion, headers map[string]string) bool {
+	primaryKey := a.Type().PrimaryKey
+	for k, v := range headers {
+		if strutil.ListContains(primaryKey, k) {
+			continue
+		}
+		if a.Header(k) != v {
+			return false
+		}
+	}
+	return true
 }
 
 func assertsFindManyInState(c *Command, at *asserts.AssertionType, headers map[string]string, opts *daemonAssertOptions) ([]asserts.Assertion, error) {
