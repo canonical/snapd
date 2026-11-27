@@ -7991,6 +7991,20 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	c.Check(warns[0].String(), Matches, fmt.Sprintf(`cannot start prompting backend: %v; prompting will be inactive until snapd is restarted`, createError))
 }
 
+func (s *interfaceManagerSuite) TestStartUpPreseedAppArmorCheckError(c *C) {
+	errCheck := fmt.Errorf("cannot preseed apparmor profiles: custom assessment")
+	restore := ifacestate.MockPreseedAppArmorCheck(func() error {
+		return errCheck
+	})
+	defer restore()
+
+	mgr, err := ifacestate.Manager(s.state, nil, nil, s.o.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+
+	err = mgr.StartUp()
+	c.Check(err, Equals, errCheck)
+}
+
 func (s *interfaceManagerSuite) TestShutDownInterfacesRequestsManager(c *C) {
 	shutDownCount := 0
 	restore := ifacestate.MockInterfacesRequestsManagerShutDown(func(m *apparmorprompting.InterfacesRequestsManager) {

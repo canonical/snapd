@@ -33,6 +33,10 @@ var (
 	SetupNotifySocketPath = setupNotifySocketPath
 )
 
+func MockPreseedAppArmorFeaturesDir(dir string) (restore func()) {
+	return testutil.Mock(&snapdenvPreseedAppArmorFeaturesDir, func() string { return dir })
+}
+
 func MockRuntimeNumCPU(new func() int) (restore func()) {
 	old := runtimeNumCPU
 	runtimeNumCPU = new

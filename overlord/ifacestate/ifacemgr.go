@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
@@ -166,6 +167,25 @@ func (m *InterfaceManager) AppArmorPromptingRunning() bool {
 // Allow m.UseAppArmorPrompting to be mocked in tests
 var assessAppArmorPrompting = (*InterfaceManager).assessAppArmorPrompting
 
+// preseedAppArmorCheck allows the check in StartUp to be mocked in tests.
+var preseedAppArmorCheck = func() error {
+	// When preseeding with an explicitly provided AppArmor features
+	// directory, an assessed level below partial can only be due to a
+	// problem with that directory, or with using it, such as the host
+	// apparmor_parser being unable to load the features of the target
+	// kernel: the features of a usable target kernel yield at least a
+	// partial level. Fail instead of excluding the apparmor backend and
+	// letting preseeding report success with no AppArmor profiles
+	// generated.
+	if snapdenv.PreseedAppArmorFeaturesDir() == "" {
+		return nil
+	}
+	if level := apparmor.ProbedLevel(); level < apparmor.Partial {
+		return fmt.Errorf("cannot preseed apparmor profiles: %s", apparmor.Summary())
+	}
+	return nil
+}
+
 // InterfacesRequestsManager returns the interfaces requests manager associated
 // with the receiver. This method may only be called after StartUp has been
 // called, and will return nil if AppArmor prompting is not running.
@@ -179,6 +199,13 @@ func (m *InterfaceManager) InterfacesRequestsManager() apparmorprompting.Manager
 
 // StartUp implements StateStarterUp.Startup.
 func (m *InterfaceManager) StartUp() error {
+	// Check that AppArmor profiles can be generated for the target kernel
+	// when preseeding with an explicitly provided AppArmor features
+	// directory, before the security backends are added.
+	if err := preseedAppArmorCheck(); err != nil {
+		return err
+	}
+
 	s := m.state
 	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
 

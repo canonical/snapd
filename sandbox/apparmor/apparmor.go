@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -570,9 +571,16 @@ var (
 // Each apparmor feature is manifested as a directory entry.
 const featuresSysPath = "sys/kernel/security/apparmor/features"
 
-// FeaturesSysDir returns the path to the AppArmor features sysfs, which is
-// /sys/kernel/security/apparmor/features, relative to the current root dir.
+var snapdenvPreseedAppArmorFeaturesDir = snapdenv.PreseedAppArmorFeaturesDir
+
+// FeaturesSysDir returns the directory to probe AppArmor kernel features
+// from: the features of the target kernel when they were provided for
+// preseeding, /sys/kernel/security/apparmor/features (relative to the current
+// root dir) otherwise.
 func FeaturesSysDir() string {
+	if dir := snapdenvPreseedAppArmorFeaturesDir(); dir != "" {
+		return dir
+	}
 	return filepath.Join(dirs.GlobalRootDir, featuresSysPath)
 }
 
@@ -600,8 +608,18 @@ func (aaa *appArmorAssess) assess() {
 func (aaa *appArmorAssess) doAssess() (level LevelType, summary string) {
 	// First, quickly check if apparmor is available in the kernel at all.
 	kernelFeatures, err := aaa.KernelFeatures()
-	if os.IsNotExist(err) {
-		return Unsupported, "apparmor not enabled"
+	if err != nil {
+		if snapdenvPreseedAppArmorFeaturesDir() != "" {
+			// The preseed features directory is provided explicitly, so
+			// failing to read it is a broken configuration, not absence of
+			// AppArmor support in the target kernel. Report the actual
+			// error; InterfaceManager.StartUp makes this level fatal when
+			// preseeding.
+			return Unusable, fmt.Sprintf("cannot read AppArmor kernel features of the target kernel: %v", err)
+		}
+		if os.IsNotExist(err) {
+			return Unsupported, "apparmor not enabled"
+		}
 	}
 	// Then check that the parser supports the required parser features.
 	// If we have any missing required features then apparmor is unusable.
@@ -724,6 +742,14 @@ func probeKernelFeatures() ([]string, error) {
 	}
 	// Features must be sorted
 	sort.Strings(features)
+	if snapdenvPreseedAppArmorFeaturesDir() != "" && len(features) == 0 {
+		// A kernel with AppArmor enabled always has some features: if the
+		// preseed features directory has none, it is not a usable dump of
+		// /sys/kernel/security/apparmor/features. Error out rather than
+		// assessing AppArmor support as unusable, leaving preseeding to
+		// silently generate no AppArmor profiles.
+		return []string{}, fmt.Errorf("no AppArmor kernel features found in %q", FeaturesSysDir())
+	}
 	return features, nil
 }
 
@@ -942,7 +968,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 				"--policy-features", abiFile,
 			}
 
-			return exec.Command(path, args...), true, nil
+			return exec.Command(path, withPreseedKernelFeatures(args)...), true, nil
 		}
 	}
 
@@ -955,7 +981,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			// Detect apparmor 5.0 ABI support from the host distribution and use it if available.
 			if fi, err := os.Lstat(hostAbi50File); err == nil && !fi.IsDir() {
 				logger.Debugf("apparmor 5.0 ABI detected")
-				return exec.Command(path, "--policy-features", hostAbi50File), false, nil
+				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi50File})...), false, nil
 			}
 
 			// Detect but ignore apparmor 4.0 ABI support from the host distribution.
@@ -971,15 +997,45 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 
 			// Perhaps 3.0?
 			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
-				return exec.Command(path, "--policy-features", hostAbi30File), false, nil
+				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi30File})...), false, nil
 			}
 
 			// Most likely 2.0
-			return exec.Command(path), false, nil
+			return exec.Command(path, withPreseedLegacyFeaturesFile(nil)...), false, nil
 		}
 	}
 
 	return nil, false, os.ErrNotExist
+}
+
+// withPreseedKernelFeatures and withPreseedLegacyFeaturesFile append to the
+// apparmor_parser arguments the option making the parser use the AppArmor
+// kernel features of the target kernel instead of the running one, when these
+// were provided for preseeding.
+//
+// With a policy ABI pin (--policy-features, AppArmor >= 3.0) this must be
+// --kernel-features (available since AppArmor 2.13), as --features-file would
+// override the pin, so use withPreseedKernelFeatures.
+//
+// When not using a policy ABI pin, apparmor_parser may be older than 2.13 and
+// not support --kernel-features, so use withPreseedLegacyFeaturesFile to use
+// --features-file instead. Although the name suggests it takes a file, passing
+// a directory works since AppArmor 2.10: the argument is passed to
+// aa_features_new(), which is documented as taking a file or directory.
+func withPreseedKernelFeatures(args []string) []string {
+	dir := snapdenvPreseedAppArmorFeaturesDir()
+	if dir == "" {
+		return args
+	}
+	return append(args, "--kernel-features", dir)
+}
+
+func withPreseedLegacyFeaturesFile(args []string) []string {
+	dir := snapdenvPreseedAppArmorFeaturesDir()
+	if dir == "" {
+		return args
+	}
+	return append(args, "--features-file", dir)
 }
 
 func appArmorParserVersion() string {
