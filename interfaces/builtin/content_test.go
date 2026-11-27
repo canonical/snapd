@@ -1460,9 +1460,65 @@ apps:
 # implementation to access the slot's exported files at the plugging
 # snap's mountpoint to accommodate software where the plugging app
 # tells the slotting app about files to share.
-"/var/snap/consumer/common/import/**" mrwklix,
+"/var/snap/consumer/common/import{,-[0-9]*}/**" mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.producer.app"), Equals, expected)
+}
+
+// Check that a slot can access the shared directory in the plug's namespace
+// even if the mount point was renamed to avoid a clash with another slot
+// connected to the same plug.
+func (s *ContentSuite) TestSlotCanAccessConnectedPlugSharedDirectoryClash(c *C) {
+	const consumerYaml = `name: consumer
+version: 0
+plugs:
+ content:
+  target: $SNAP_COMMON/import
+`
+	plug, _ := MockConnectedPlug(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
+	const producerOneYaml = `name: producer-one
+version: 0
+slots:
+ content:
+  write:
+   - $SNAP_COMMON/export
+apps:
+  app:
+    command: bar
+`
+	slotOne, _ := MockConnectedSlot(c, producerOneYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
+	const producerTwoYaml = `name: producer-two
+version: 0
+slots:
+ content:
+  write:
+   - $SNAP_COMMON/export
+apps:
+  app:
+    command: bar
+`
+	slotTwo, _ := MockConnectedSlot(c, producerTwoYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
+
+	// The second write mount is renamed to avoid a clash.
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slotOne), IsNil)
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slotTwo), IsNil)
+	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/snap/producer-one/common/export",
+		Dir:     "/var/snap/consumer/common/import",
+		Options: []string{"bind"},
+	}, {
+		Name:    "/var/snap/producer-two/common/export",
+		Dir:     "/var/snap/consumer/common/import-2",
+		Options: []string{"bind"},
+	}})
+
+	// The slot side rule covers the renamed mount point too.
+	apparmorSpec := apparmor.NewSpecification(slotTwo.AppSet())
+	c.Assert(apparmorSpec.AddConnectedSlot(s.iface, plug, slotTwo), IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer-two.app"})
+	c.Check(apparmorSpec.SnippetForTag("snap.producer-two.app"), testutil.Contains,
+		`"/var/snap/consumer/common/import{,-[0-9]*}/**" mrwklix,`)
 }
 
 func (s *ContentSuite) TestStaticInfo(c *C) {
