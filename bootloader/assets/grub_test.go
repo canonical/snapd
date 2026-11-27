@@ -77,6 +77,8 @@ func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
 		"snapd_run_system_status=trying",
 		"save_env try_run_system",
 		"load_env --file=($seed_fs)/systems/$selected_run_system/grubenv",
+		`echo "cannot find the kernel of run system $selected_run_system, rebooting"`,
+		"if chainloader (loop)/kernel.efi snapd_recovery_mode=run snapd_run_system=$selected_run_system $cmdline_args; then",
 		"set snapd_static_cmdline_args='console=ttyS0,115200n8 console=tty1 panic=-1'",
 	)
 }
