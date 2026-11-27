@@ -193,8 +193,44 @@ func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, ho
 		holdDuration = holdTime.Sub(timeNow())
 	}
 
-	_, err = HoldRefresh(st, level, "system", holdDuration, holdSnaps...)
-	return err
+	if _, err := HoldRefresh(st, level, "system", holdDuration, holdSnaps...); err != nil {
+		return err
+	}
+
+	return clearRefreshInhibition(st, snaps, holdSnaps)
+}
+
+// clearRefreshInhibition stops waiting for the given snaps to close and clears
+// their inhibited auto-refresh state, so that clients are no longer told that
+// the snaps will be refreshed once closed.
+func clearRefreshInhibition(st *state.State, snaps map[naming.InstanceName]*SnapState, snapNames []string) error {
+	for _, name := range snapNames {
+		abortMonitoring(st, name)
+		if err := removeMonitoring(st, name); err != nil {
+			return err
+		}
+
+		instanceName := naming.InstanceName(name)
+		snapst := snaps[instanceName]
+		if snapst.RefreshInhibitedTime == nil {
+			continue
+		}
+		snapst.RefreshInhibitedTime = nil
+		Set(st, instanceName, snapst)
+	}
+
+	return maybeAddRefreshInhibitNotice(st)
+}
+
+// isHeldForAutoRefresh returns whether the snap is currently held at a level
+// that prevents it from being auto-refreshed.
+func isHeldForAutoRefresh(st *state.State, snapName string) (bool, error) {
+	held, err := HeldSnaps(st, HoldAutoRefresh)
+	if err != nil {
+		return false, err
+	}
+	_, ok := held[snapName]
+	return ok, nil
 }
 
 // HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.

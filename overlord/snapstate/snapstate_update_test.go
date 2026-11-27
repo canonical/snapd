@@ -13200,6 +13200,278 @@ func (s *snapmgrTestSuite) TestDownloadTaskMonitorsRepeated(c *C) {
 	s.settle(c)
 }
 
+// setupMonitoredPreDownload installs snap "foo" with a refresh candidate and
+// runs a pre-download that finds the snap busy, so that its auto-refresh is
+// inhibited and snapd starts waiting for the snap to close. It returns a
+// function that simulates the snap's apps closing. The state must be locked.
+func (s *snapmgrTestSuite) setupMonitoredPreDownload(c *C) (closeSnap func()) {
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags:        snapstate.Flags{IsAutoRefresh: true},
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "my-url"},
+	}
+	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
+		"foo": {SnapSetup: *snapsup},
+	})
+
+	inhibited := true
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		if inhibited {
+			return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+		}
+		return nil
+	})
+	s.AddCleanup(restore)
+
+	var monitorSignal chan<- string
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(name string, done chan<- string) error {
+		c.Check(name, Equals, "foo")
+		monitorSignal = done
+		return nil
+	})
+	s.AddCleanup(restore)
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+
+	return func() {
+		inhibited = false
+		if monitorSignal != nil {
+			// the channel is buffered so this doesn't block even if
+			// nothing is listening anymore
+			monitorSignal <- "foo"
+		}
+	}
+}
+
+func checkSnapNotRefreshed(c *C, st *state.State, name string) {
+	c.Check(findChange(st, "auto-refresh"), IsNil)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(st, naming.InstanceName(name), &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(1))
+}
+
+func (s *snapmgrTestSuite) TestHoldStopsWaitingForInhibitedSnapToClose(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupMonitoredPreDownload(c)
+	c.Assert(snapstate.IsSnapMonitored(s.state, "foo"), Equals, true)
+
+	err := snapstate.HoldRefreshesBySystem(s.state, snapstate.HoldGeneral, "forever", []string{"foo"})
+	c.Assert(err, IsNil)
+
+	// holding the snap stops monitoring it right away
+	c.Check(snapstate.IsSnapMonitored(s.state, "foo"), Equals, false)
+	var hints map[string]*snapstate.RefreshCandidate
+	c.Assert(s.state.Get("refresh-candidates", &hints), IsNil)
+	c.Check(hints["foo"].Monitored, Equals, false)
+}
+
+func (s *snapmgrTestSuite) testInhibitedRefreshNotContinuedForHeldSnap(c *C, level snapstate.HoldLevel) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	closeSnap := s.setupMonitoredPreDownload(c)
+	c.Assert(snapstate.IsSnapMonitored(s.state, "foo"), Equals, true)
+
+	// hold without going through HoldRefreshesBySystem so that monitoring
+	// keeps running and the check on continuing the refresh is exercised
+	_, err := snapstate.HoldRefresh(s.state, level, "system", 0, "foo")
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	closeSnap()
+	// the monitoring goroutine removes the monitoring once it's done
+	waitFor(s.state, c, func() bool {
+		return !snapstate.IsSnapMonitored(s.state, "foo")
+	})
+	s.state.Lock()
+	s.settle(c)
+
+	checkSnapNotRefreshed(c, s.state, "foo")
+}
+
+func (s *snapmgrTestSuite) TestInhibitedRefreshNotContinuedForHeldSnapGeneral(c *C) {
+	s.testInhibitedRefreshNotContinuedForHeldSnap(c, snapstate.HoldGeneral)
+}
+
+func (s *snapmgrTestSuite) TestInhibitedRefreshNotContinuedForHeldSnapAutoRefresh(c *C) {
+	s.testInhibitedRefreshNotContinuedForHeldSnap(c, snapstate.HoldAutoRefresh)
+}
+
+func (s *snapmgrTestSuite) TestInhibitedRefreshContinuedAfterHoldExpires(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	closeSnap := s.setupMonitoredPreDownload(c)
+
+	_, err := snapstate.HoldRefresh(s.state, snapstate.HoldGeneral, "system", time.Hour, "foo")
+	c.Assert(err, IsNil)
+
+	// the hold expires before the snap is closed
+	now := time.Now()
+	restore := snapstate.MockTimeNow(func() time.Time { return now.Add(2 * time.Hour) })
+	defer restore()
+
+	s.state.Unlock()
+	closeSnap()
+	waitForMonitoringEnd(s.state, c)
+	s.state.Lock()
+	s.settle(c)
+
+	chg := findChange(s.state, "auto-refresh")
+	c.Assert(chg, NotNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(2))
+}
+
+func (s *snapmgrTestSuite) TestPreDownloadDoesNotMonitorHeldSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the snap is held before the pre-download notices it's busy
+	restore := snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error {
+		c.Error("held snap should not be monitored")
+		return nil
+	})
+	defer restore()
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	si := &snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+	})
+	snapsup := &snapstate.SnapSetup{
+		SideInfo:     &snap.SideInfo{RealName: "foo", Revision: snap.R(2)},
+		Flags:        snapstate.Flags{IsAutoRefresh: true},
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "my-url"},
+	}
+	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
+		"foo": {SnapSetup: *snapsup},
+	})
+
+	_, err := snapstate.HoldRefresh(s.state, snapstate.HoldAutoRefresh, "system", 0, "foo")
+	c.Assert(err, IsNil)
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+	preDlTask.Set("snap-setup", snapsup)
+	preDlTask.Set("refresh-info", &userclient.PendingSnapRefreshInfo{InstanceName: "foo"})
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	c.Check(snapstate.IsSnapMonitored(s.state, "foo"), Equals, false)
+	checkSnapNotRefreshed(c, s.state, "foo")
+}
+
+func (s *snapmgrTestSuite) TestHoldClearsRefreshInhibition(c *C) {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error { return nil })
+	defer restore()
+	// no snap with the marker interface means a warning is used as fallback
+	restore = snapstate.MockHasActiveConnection(func(*state.State, string) (bool, error) { return false, nil })
+	defer restore()
+
+	s.state.Lock()
+	for _, name := range []string{"some-snap", "some-other-snap"} {
+		snapstate.Set(s.state, naming.InstanceName(name), &snapstate.SnapState{
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{RealName: name, SnapID: name + "-id", Revision: snap.R(1)},
+			}),
+			Current:  snap.R(1),
+			SnapType: string(snap.TypeApp),
+		})
+	}
+	s.state.Unlock()
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	c.Assert(s.snapmgr.Ensure(), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.settle(c)
+
+	// both snaps are busy so their auto-refreshes are inhibited
+	for _, name := range []string{"some-snap", "some-other-snap"} {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, naming.InstanceName(name), &snapst), IsNil)
+		c.Assert(snapst.RefreshInhibitedTime, NotNil, Commentf("%s", name))
+		c.Assert(snapstate.IsSnapMonitored(s.state, name), Equals, true)
+	}
+	checkRefreshInhibitNotice(c, s.state, 1)
+	checkLastRecordedInhibitedSnaps(c, s.state, []string{"some-snap", "some-other-snap"})
+	checkRefreshInhibitWarning(c, s.state, []string{"some-snap", "some-other-snap"}, time.Time{})
+
+	err := snapstate.HoldRefreshesBySystem(s.state, snapstate.HoldGeneral, "forever", []string{"some-snap"})
+	c.Assert(err, IsNil)
+
+	// the held snap is no longer inhibited nor monitored
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	c.Check(snapst.RefreshInhibitedTime, IsNil)
+	c.Check(snapst.RefreshInhibitProceedTime(s.state).IsZero(), Equals, true)
+	c.Check(snapstate.IsSnapMonitored(s.state, "some-snap"), Equals, false)
+
+	// the other snap is unaffected
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapst), IsNil)
+	c.Check(snapst.RefreshInhibitedTime, NotNil)
+	c.Check(snapstate.IsSnapMonitored(s.state, "some-other-snap"), Equals, true)
+
+	// clients are told the set of inhibited snaps changed
+	checkRefreshInhibitNotice(c, s.state, 2)
+	checkLastRecordedInhibitedSnaps(c, s.state, []string{"some-other-snap"})
+	checkRefreshInhibitWarning(c, s.state, []string{"some-other-snap"}, time.Time{})
+
+	// holding the remaining snap clears the warning too
+	err = snapstate.HoldRefreshesBySystem(s.state, snapstate.HoldAutoRefresh, "forever", []string{"some-other-snap"})
+	c.Assert(err, IsNil)
+	checkRefreshInhibitNotice(c, s.state, 3)
+	checkLastRecordedInhibitedSnaps(c, s.state, nil)
+	checkNoRefreshInhibitWarning(c, s.state)
+
+	// holding a snap that isn't inhibited doesn't record a new notice
+	err = snapstate.HoldRefreshesBySystem(s.state, snapstate.HoldGeneral, "forever", []string{"some-snap"})
+	c.Assert(err, IsNil)
+	checkRefreshInhibitNotice(c, s.state, 3)
+}
+
 func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

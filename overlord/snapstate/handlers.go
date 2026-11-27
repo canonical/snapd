@@ -551,6 +551,13 @@ func asyncRefreshOnSnapClose(st *state.State, snapName string) error {
 		return nil
 	}
 
+	// a held snap will not be refreshed once closed, so don't wait for it
+	if held, err := isHeldForAutoRefresh(st, snapName); err != nil {
+		return err
+	} else if held {
+		return nil
+	}
+
 	// monitor the snap until it closes. Use buffered channel to prevent the sender
 	// from blocking if the receiver stops before reading from it
 	done := make(chan string, 1)
@@ -682,6 +689,14 @@ func continueInhibitedAutoRefresh(st *state.State, snapName string) error {
 	hint, ok := refreshHints[snapName]
 	if !ok {
 		return fmt.Errorf("cannot get refresh-candidates for %q: not found", snapName)
+	}
+
+	// the snap may have been held after its auto-refresh was inhibited
+	if held, err := isHeldForAutoRefresh(st, snapName); err != nil {
+		return err
+	} else if held {
+		logger.Noticef("auto-refresh of %q is held, not continuing inhibited auto-refresh", snapName)
+		return nil
 	}
 
 	flags := &Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
