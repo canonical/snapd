@@ -469,6 +469,16 @@ dbus (send)
       member=CreateInputContext
       peer=(name=org.freedesktop.portal.IBus),
 
+# IBUS_USE_PORTAL=1 will send a Ping before start future communication with portal
+# IBus service.
+# https://github.com/ibus/ibus/blob/7d228eafa986ee43bf41aa0d675a04540ab767e7/src/ibusbus.c#L457
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus
+      interface=org.freedesktop.DBus.Peer
+      member=Ping
+      peer=(name=org.freedesktop.portal.IBus),
+
 dbus (send, receive)
       bus=session
       path=/org/freedesktop/IBus/InputContext_[0-9]*
