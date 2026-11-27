@@ -1,0 +1,131 @@
+summary: Ensure that the assertion-sign interface and POST /v2/assertions/sign work.
+
+details: |
+    The assertion-sign interface lets a *restricted* snap ask snapd to sign an
+    assertion on its behalf (mediated signing), instead of shipping gpg and the
+    private key itself. This test exercises:
+
+    1. denial when the plug is not connected (403, before any key/prompt work);
+    2. denial for an assertion type outside the plug's "assertion-types"
+       allow-list (403);
+    3. the happy path: a connected caller gets back the signed assertion,
+       whose sign-key-sha3-384 matches the daemon-side key;
+    4. denial again after the plug is disconnected.
+
+    The task body runs as root, and a root caller is granted the endpoint
+    without a polkit prompt once the interface gate passes (the polkit
+    auth_admin requirement is for unprivileged callers; see
+    daemon/access.go). The signing key is provisioned into root's GPG
+    keyring as a passphrase-less key (headless CI has no pinentry) and
+    read by the daemon, which is why this
+    task is restricted to systems where snapd runs as a classic (deb) package
+    with a gpg binary on its PATH. On a snap-based snapd (e.g. Ubuntu Core)
+    the daemon is strict-confinement with no gpg; there the endpoint must use
+    an external keypair manager (SNAPD_EXT_KEYMGR) -- see the design doc.
+
+# core: daemon (snapd snap) has no gpg; needs the external key manager path.
+# ppc64el: https://bugs.launchpad.net/snappy/+bug/1655594
+# amazon/centos/fedora/opensuse: gpg-agent/pinentry setup is environment-specific.
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -amazon-*, -centos-*]
+
+environment:
+    PYTHONIOENCODING: utf-8
+
+prepare: |
+    #shellcheck source=tests/lib/random.sh
+    . "$TESTSLIB"/random.sh
+    kill_gpg_agent
+
+    # model assertion statement signed on the happy path (type is in the
+    # client plug's allow-list)
+    cat > model-statement.json <<'EOF'
+    {
+      "type": "model",
+      "authority-id": "test",
+      "brand-id": "test",
+      "series": "16",
+      "model": "pi3",
+      "architecture": "armhf",
+      "gadget": "pi3",
+      "kernel": "pi2-kernel",
+      "timestamp": "2025-01-01T00:00:00Z"
+    }
+    EOF
+
+    # statement whose type is NOT in the allow-list (denial path)
+    cat > account-statement.json <<'EOF'
+    {
+      "type": "account",
+      "authority-id": "canonical",
+      "account-id": "test",
+      "display-name": "test",
+      "since": "2025-01-01T00:00:00Z"
+    }
+    EOF
+
+debug: |
+    snap connections assertion-sign-client || true
+    snap keys || true
+
+execute: |
+    echo "Provision a passphrase-less signing key into root's keyring (the daemon's keyring)"
+    # A passphrase-LESS key is required for headless CI: there is no pinentry
+    # to unlock a passphrase-protected key, so gpg-agent would time out on
+    # every signature. (The K3 external key manager is the recommended
+    # production path; this passphrase-less GPG key is the classic/deb
+    # transitional path this task exercises.) The daemon reads the keyring
+    # directly, so no `snap create-key` (which forces a passphrase) is needed.
+    keyring=/root/.snap/gnupg
+    mkdir -p -m 700 "$keyring"
+    gpgconf --kill all --homedir "$keyring" || true
+    # idempotent: drop any pre-existing key whose uid is exactly "default"
+    # (gpg lists the fpr line before the uid line)
+    for fpr in $(gpg --homedir "$keyring" --batch --with-colons --list-secret-keys 2>/dev/null | awk -F: '
+        $1 == "fpr" { lastfpr = $10 }
+        $1 == "uid" && $10 == "default" { print lastfpr }
+    '); do
+        gpg --homedir "$keyring" --batch --yes --delete-secret-and-public-key "$fpr" || true
+    done
+    gpg --homedir "$keyring" --batch --yes --pinentry-mode loopback \
+        --passphrase "" --quick-generate-key "default" rsa4096 sign never
+    snap keys | MATCH " default "
+    key=$(snap keys | grep " default " | tr -s ' ' | cut -d ' ' -f 2)
+    test -n "$key"
+
+    echo "Install the restricted client snap"
+    "$TESTSTOOLS"/snaps-state install-local assertion-sign-client
+
+    echo "The assertion-sign plug is not connected by default"
+    snap connections assertion-sign-client | MATCH "assertion-sign +assertion-sign-client:assertion-sign +- +-"
+
+    echo "Denial 1: without the connection, the endpoint is 403 (interface gate)"
+    assertion-sign-client.sign "$(cat model-statement.json)" > response.txt
+    gojq -r '."status-code"' < response.txt | MATCH '^403$'
+
+    echo "Connect the assertion-sign plug (resolves to the core slot)"
+    snap connect assertion-sign-client:assertion-sign
+    snap connections assertion-sign-client | MATCH "assertion-sign +assertion-sign-client:assertion-sign +:"
+
+    echo "Denial 2: assertion type outside the plug's allow-list is 403"
+    assertion-sign-client.sign "$(cat account-statement.json)" > response.txt
+    gojq -r '."status-code"' < response.txt | MATCH '^403$'
+    gojq -r '.result.message' < response.txt | MATCH 'assertion type "account" is not allowed for this connection'
+
+    echo "Happy path: a connected caller gets back the signed assertion"
+    assertion-sign-client.sign "$(cat model-statement.json)" > response.txt
+    gojq -r '."status-code"' < response.txt | MATCH '^200$'
+    gojq -r '.result' < response.txt > signed.assert
+    MATCH "type: model" < signed.assert
+    MATCH "sign-key-sha3-384: $key" < signed.assert
+    # the daemon must not echo anything secret; only the signed assertion
+    # modern snapd emits a base64 detached signature (no "openpgp rsa.." header);
+    # a valid signed assertion has a non-empty signature line after the header block
+    test "$(awk "NR>1 && blank==1 && NF{c++} /^$/{blank=1} END{print c+0}" signed.assert)" -ge 1
+
+    echo "Denial 3: after disconnecting, the endpoint is 403 again"
+    snap disconnect assertion-sign-client:assertion-sign
+    assertion-sign-client.sign "$(cat model-statement.json)" > response.txt
+    gojq -r '."status-code"' < response.txt | MATCH '^403$'
+
+restore: |
+    rm -f model-statement.json account-statement.json response.txt signed.assert
