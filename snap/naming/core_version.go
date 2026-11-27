@@ -20,9 +20,14 @@
 package naming
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
+)
+
+var (
+	NotACoreBaseError = errors.New("not a core base")
 )
 
 var (
@@ -36,7 +41,7 @@ func CoreVersion(base string) (int, error) {
 	foundCore := coreNameFormat.FindStringSubmatch(base)
 
 	if foundCore == nil {
-		return 0, fmt.Errorf("not a core base")
+		return 0, NotACoreBaseError
 	}
 
 	coreVersionStr := foundCore[coreNameFormat.SubexpIndex("version")]

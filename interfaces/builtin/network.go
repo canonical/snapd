@@ -19,6 +19,13 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap/naming"
+)
+
 const networkSummary = `allows access to the network`
 
 const networkBaseDeclarationSlots = `
@@ -74,6 +81,13 @@ dbus send
 /{,usr/}bin/nc{,.openbsd} ixr,
 `
 
+const pingConnectedPlugAppArmor = `
+# In most cases ping only needs SOCK_DGRAM which we give here, so it
+# should work.
+/{,usr/}{,s}bin/ping ixr,
+/{,usr/}{,s}bin/ping6 ixr,
+`
+
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
@@ -90,14 +104,34 @@ socket AF_NETLINK - NETLINK_ROUTE
 socket AF_CONN
 `
 
+type networkInterface struct {
+	commonInterface
+}
+
+func (iface *networkInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(networkConnectedPlugAppArmor)
+
+	coreVersion, err := naming.CoreVersion(plug.Snap().Base)
+	switch {
+	case len(plug.Snap().Base) == 0: // unset base, no warning
+	case err == naming.NotACoreBaseError: // not core, no warning
+	case err != nil:
+		logger.Noticef("WARNING: while generating network apparmor snippet: %v", err)
+	case coreVersion >= 20:
+		// /sbin/ping has setuid core < 20. It has file caps on 20+ which is fine.
+		spec.AddSnippet(pingConnectedPlugAppArmor)
+	}
+
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
+	registerIface(&networkInterface{commonInterface{
 		name:                  "network",
 		summary:               networkSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  networkBaseDeclarationSlots,
-		connectedPlugAppArmor: networkConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkConnectedPlugSecComp,
-	})
+	}})
 }
