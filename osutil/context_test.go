@@ -31,8 +31,8 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/rootdir"
 )
 
 type ctxSuite struct{}
@@ -104,13 +104,13 @@ func (ctxSuite) TestRunMany(c *check.C) {
 
 func (s ctxSuite) TestRunManyCmdError(c *check.C) {
 	var cmds []*exec.Cmd
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
+	rootdir.SetRootDir(c.MkDir())
+	defer rootdir.SetRootDir("")
 
 	buildExec := func(ctx context.Context) ([]*exec.Cmd, []func() error, error) {
 		// One command will fail. We use a file to ensure both
 		// processes have started before exiting any.
-		startedPath := filepath.Join(dirs.GlobalRootDir, "started")
+		startedPath := filepath.Join(rootdir.RootDir, "started")
 		cmds = []*exec.Cmd{
 			// Returns exit status 1
 			exec.CommandContext(ctx, "sh", "-c",

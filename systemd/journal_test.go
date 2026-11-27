@@ -27,7 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	. "github.com/snapcore/snapd/systemd"
 )
 
@@ -39,12 +39,12 @@ type journalTestSuite struct {
 var _ = Suite(&journalTestSuite{})
 
 func (j *journalTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	rootdir.SetRootDir(c.MkDir())
 
-	j.journalDir = path.Join(dirs.SnapSystemdRunDir, "journal")
+	j.journalDir = path.Join(rootdir.RootDir, "/run/systemd", "journal")
 	c.Assert(os.MkdirAll(j.journalDir, 0755), IsNil)
 
-	j.journalNamespaceDir = path.Join(dirs.SnapSystemdRunDir, "journal.test")
+	j.journalNamespaceDir = path.Join(rootdir.RootDir, "/run/systemd", "journal.test")
 	c.Assert(os.MkdirAll(j.journalNamespaceDir, 0755), IsNil)
 }
 

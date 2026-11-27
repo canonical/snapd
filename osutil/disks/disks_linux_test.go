@@ -27,13 +27,92 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/testutil"
 )
+
+const oneMeg = uint64(1024 * 1024)
+
+// vmSystemVolumeDiskMappingSeedFsLabelCaps mirrors
+// gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps without depending on
+// the gadget package.
+var vmSystemVolumeDiskMappingSeedFsLabelCaps = &disks.MockDiskMapping{
+	DevNode: "/dev/vda",
+	DevPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
+	DevNum:  "600:1",
+	// assume 34 sectors at end for GPT headers backup
+	DiskUsableSectorEnd: 5120*oneMeg/512 - 34,
+	DiskSizeInBytes:     5120 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "gpt",
+	ID:                  "f0eef013-a777-4a27-aaf0-dbb5cf68c2b6",
+	Structure: []disks.Partition{
+		{
+			KernelDeviceNode: "/dev/vda1",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda2",
+			PartitionUUID:    "4b436628-71ba-43f9-aa12-76b84fe32728",
+			PartitionLabel:   "ubuntu-seed",
+			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			FilesystemUUID:   "04D6-5AE2",
+			FilesystemLabel:  "UBUNTU-SEED",
+			FilesystemType:   "vfat",
+			StartInBytes:     1 * oneMeg,
+			SizeInBytes:      1200 * oneMeg,
+			Major:            600,
+			Minor:            3,
+			DiskIndex:        1,
+		},
+		{
+			KernelDeviceNode: "/dev/vda2",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda3",
+			PartitionUUID:    "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
+			PartitionLabel:   "ubuntu-boot",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			FilesystemUUID:   "5b3e775a-407d-4af7-aa16-b92a8b7507e6",
+			FilesystemLabel:  "ubuntu-boot",
+			FilesystemType:   "ext4",
+			StartInBytes:     (1200 + 1) * oneMeg,
+			SizeInBytes:      750 * oneMeg,
+			Major:            600,
+			Minor:            4,
+			DiskIndex:        2,
+		},
+		{
+			KernelDeviceNode: "/dev/vda3",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda4",
+			PartitionUUID:    "f1d01870-194b-8a45-84c0-0d1c90e17d9d",
+			PartitionLabel:   "ubuntu-save",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			FilesystemUUID:   "6766b605-9cd5-47ae-bc48-807c778b9987",
+			FilesystemLabel:  "ubuntu-save",
+			FilesystemType:   "ext4",
+			StartInBytes:     (1200 + 1 + 750) * oneMeg,
+			SizeInBytes:      16 * oneMeg,
+			Major:            600,
+			Minor:            5,
+			DiskIndex:        3,
+		},
+		{
+			KernelDeviceNode: "/dev/vda4",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda5",
+			PartitionUUID:    "4994f0e5-1ead-1a4d-b696-2d8cb1fa980d",
+			PartitionLabel:   "ubuntu-data",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			FilesystemUUID:   "4e29a1e9-526d-48fc-a5c2-4f97e7e011e2",
+			FilesystemLabel:  "ubuntu-data",
+			FilesystemType:   "ext4",
+			StartInBytes:     (1200 + 1 + 750 + 16) * oneMeg,
+			// including the last usable sector - the offset
+			SizeInBytes: ((5120*oneMeg - 33*512) - (1+1+1200+750+16)*oneMeg),
+			Major:       600,
+			Minor:       6,
+			DiskIndex:   4,
+		},
+	},
+}
 
 var (
 	virtioDiskDevPath = "/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/"
@@ -112,11 +191,18 @@ var (
 	}
 )
 
+// sysfsDir mirrors the production helper: the sysfs mount point under the
+// global root directory. It is a function because the global root directory
+// may change between tests.
+func sysfsDir() string {
+	return filepath.Join(rootdir.RootDir, "/sys")
+}
+
 func createVirtioDevicesInSysfs(c *C, path string, devsToPartition map[string]bool) {
 	if path == "" {
 		path = virtioDiskDevPath
 	}
-	diskDir := filepath.Join(dirs.SysfsDir, path)
+	diskDir := filepath.Join(sysfsDir(), path)
 	for dev, isPartition := range devsToPartition {
 		err := os.MkdirAll(filepath.Join(diskDir, dev), 0755)
 		c.Assert(err, IsNil)
@@ -134,7 +220,7 @@ type diskSuite struct {
 var _ = Suite(&diskSuite{})
 
 func (s *diskSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	rootdir.SetRootDir(c.MkDir())
 }
 
 func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
@@ -162,7 +248,7 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 	c.Assert(d.Model(), Equals, "No Name SSD")
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
-	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, sdaSysfsPath))
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(sysfsDir(), sdaSysfsPath))
 	// it doesn't have any partitions since we didn't mock any in sysfs
 	c.Assert(d.HasPartitions(), Equals, false)
 
@@ -262,8 +348,8 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	c.Assert(d.DiskID(), Equals, "bar")
 	c.Assert(d.Schema(), Equals, "dos")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vdb")
-	// note that we don't always prepend exactly /sys, we use dirs.SysfsDir
-	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, vdaSysfsPath))
+	// note that we don't always prepend exactly /sys, we use sysfsDir
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(sysfsDir(), vdaSysfsPath))
 
 	// it doesn't have any partitions since we didn't mock any in sysfs
 	c.Assert(d.HasPartitions(), Equals, false)
@@ -289,7 +375,7 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			Minor:            4,
 			PartitionUUID:    "1212e868-02",
 			PartitionType:    "83",
-			KernelDevicePath: filepath.Join(dirs.SysfsDir, vdaSysfsPath) + "2",
+			KernelDevicePath: filepath.Join(sysfsDir(), vdaSysfsPath) + "2",
 			KernelDeviceNode: "/dev/vdb2",
 			SizeInBytes:      124473665 * 512,
 			StartInBytes:     uint64(257 * quantity.SizeMiB),
@@ -300,7 +386,7 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			Minor:            3,
 			PartitionUUID:    "1212e868-01",
 			PartitionType:    "0C",
-			KernelDevicePath: filepath.Join(dirs.SysfsDir, vdaSysfsPath) + "1",
+			KernelDevicePath: filepath.Join(sysfsDir(), vdaSysfsPath) + "1",
 			KernelDeviceNode: "/dev/vdb1",
 			SizeInBytes:      uint64(256 * quantity.SizeMiB),
 			StartInBytes:     uint64(quantity.SizeMiB),
@@ -355,8 +441,8 @@ func (s *diskSuite) TestDiskFromPartitionDeviceNodeHappy(c *C) {
 	c.Assert(d.DiskID(), Equals, "foo-id")
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
-	// note that we don't always prepend exactly /sys, we use dirs.SysfsDir
-	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, "/devices/foo/sda"))
+	// note that we don't always prepend exactly /sys, we use sysfsDir
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(sysfsDir(), "/devices/foo/sda"))
 
 	// it doesn't have any partitions since we didn't mock any in sysfs
 	c.Assert(d.HasPartitions(), Equals, true)
@@ -532,7 +618,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot process properties of /dev/mapper/something parent device: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, sysfsDir()))
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
@@ -620,7 +706,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			FilesystemLabel:  "some-label",
 			PartitionUUID:    "some-uuid",
 			PartitionLabel:   "",
-			KernelDevicePath: filepath.Join(dirs.SysfsDir, "/devices/some-device"),
+			KernelDevicePath: filepath.Join(sysfsDir(), "/devices/some-device"),
 			KernelDeviceNode: "/dev/vda4",
 			Major:            42,
 			Minor:            4,
@@ -677,7 +763,7 @@ fi
 
 	c.Assert(d.HasPartitions(), Equals, true)
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vda")
-	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, virtioDiskDevPath))
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(sysfsDir(), virtioDiskDevPath))
 	c.Assert(d.Schema(), Equals, "gpt")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
@@ -740,7 +826,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	defer restore()
 
 	// mock the sysfs dm uuid and name files
-	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
+	dmDir := filepath.Join(filepath.Join(sysfsDir(), "dev", "block"), "242:1", "dm")
 	err := os.MkdirAll(dmDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -1044,7 +1130,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			PartitionUUID:    "ubuntu-data-enc-partuuid",
 			Major:            42,
 			Minor:            4,
-			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-data-enc-device", dirs.SysfsDir),
+			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-data-enc-device", sysfsDir()),
 			KernelDeviceNode: "/dev/vda4",
 			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			SizeInBytes:      8552415 * 512,
@@ -1057,7 +1143,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			PartitionUUID:    "ubuntu-boot-partuuid",
 			Major:            42,
 			Minor:            3,
-			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-boot-device", dirs.SysfsDir),
+			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-boot-device", sysfsDir()),
 			KernelDeviceNode: "/dev/vda3",
 			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			SizeInBytes:      1536000 * 512,
@@ -1070,7 +1156,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			PartitionUUID:    "ubuntu-seed-partuuid",
 			Major:            42,
 			Minor:            2,
-			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-seed-device", dirs.SysfsDir),
+			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-seed-device", sysfsDir()),
 			KernelDeviceNode: "/dev/vda2",
 			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			SizeInBytes:      2457600 * 512,
@@ -1082,7 +1168,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			PartitionUUID:    "bios-boot-partuuid",
 			Major:            42,
 			Minor:            1,
-			KernelDevicePath: fmt.Sprintf("%s/devices/bios-boot-device", dirs.SysfsDir),
+			KernelDevicePath: fmt.Sprintf("%s/devices/bios-boot-device", sysfsDir()),
 			KernelDeviceNode: "/dev/vda1",
 			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
 			SizeInBytes:      2048 * 512,
@@ -1197,7 +1283,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	defer restore()
 
 	// mock the sysfs dm uuid and name files
-	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "252:0", "dm")
+	dmDir := filepath.Join(filepath.Join(sysfsDir(), "dev", "block"), "252:0", "dm")
 	err := os.MkdirAll(dmDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -1777,7 +1863,7 @@ fi
 func (s *diskSuite) TestAllPhysicalDisks(c *C) {
 	// mock some devices in /sys/block
 
-	blockDir := filepath.Join(dirs.SysfsDir, "block")
+	blockDir := filepath.Join(sysfsDir(), "block")
 	err := os.MkdirAll(blockDir, 0755)
 	c.Assert(err, IsNil)
 	devsToCreate := []string{"sda", "loop1", "loop2", "sdb", "nvme0n1", "mmcblk0"}
@@ -1933,10 +2019,10 @@ func (s *diskSuite) TestDMCryptUUIDFromMountPointFallback(c *C) {
 	})
 	defer restore()
 
-	err := os.MkdirAll(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm"), 0755)
+	err := os.MkdirAll(filepath.Join(sysfsDir(), "devices/virtual/mydevice", "dm"), 0755)
 	c.Assert(err, IsNil)
 	b := []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something\n")
-	err = os.WriteFile(filepath.Join(dirs.SysfsDir, "devices/virtual/mydevice", "dm/uuid"), b, 0644)
+	err = os.WriteFile(filepath.Join(sysfsDir(), "devices/virtual/mydevice", "dm/uuid"), b, 0644)
 	c.Assert(err, IsNil)
 
 	uuid, err := disks.DMCryptUUIDFromMountPoint("/run/mnt/point")
@@ -1979,7 +2065,7 @@ func (s *diskSuite) TestFilesystemTypeForPartition(c *C) {
 func (s *diskSuite) TestFindMatchingPartitionWithFsLabel(c *C) {
 	// mock disk
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+		"/dev/vda": vmSystemVolumeDiskMappingSeedFsLabelCaps,
 	})
 	defer restore()
 
@@ -2084,7 +2170,7 @@ func (s *diskSuite) TestDevlinks(c *C) {
 
 func (s *diskSuite) TestFindMatchingPartitionWithPartUUID(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+		"/dev/vda": vmSystemVolumeDiskMappingSeedFsLabelCaps,
 	})
 	defer restore()
 

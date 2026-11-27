@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
 
@@ -154,7 +154,7 @@ func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, 
 	}
 
 	// Create directory as systemd would do when starting the unit
-	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, unitOptions.Where), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(rootdir.RootDir, unitOptions.Where), 0755); err != nil {
 		return "", err
 	}
 
@@ -199,7 +199,11 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		}
 	}
 
-	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
+	baseDir, err := rootdir.StripRootDir(mountedDir)
+	if err != nil {
+		return err
+	}
+	unit := MountUnitPath(baseDir)
 	if !osutil.FileExists(unit) {
 		return nil
 	}

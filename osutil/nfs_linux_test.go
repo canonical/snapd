@@ -138,10 +138,6 @@ func (s *nfsSuite) TestSnapDirsUnderNFSMounts(c *C) {
 	defer restore()
 
 	dirPath := c.MkDir()
-	restore = osutil.MockAllDataHomeGlobs(func() []string {
-		return []string{filepath.Join(dirPath, "*", "snap")}
-	})
-	defer restore()
 
 	types := []string{"autofs", "nfs", "cifs"}
 
@@ -152,7 +148,7 @@ func (s *nfsSuite) TestSnapDirsUnderNFSMounts(c *C) {
 		err := os.MkdirAll(filepath.Join(fsDir, "snap"), 0755)
 		c.Assert(err, IsNil, cmt)
 
-		res, err := osutil.SnapDirsUnderNFSMounts()
+		res, err := osutil.SnapDirsUnderNFSMounts([]string{filepath.Join(dirPath, "*", "snap")})
 		c.Assert(err, IsNil, cmt)
 		c.Assert(res, Equals, typ == "nfs")
 

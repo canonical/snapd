@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -386,4 +387,35 @@ func (s *DirsTestSuite) TestWritableMountPathCore(c *C) {
 
 	c.Check(dirs.WritableMountPath, Equals, "/writable")
 	c.Check(dirs.WritableUbuntuCoreSystemDataDir, Equals, "/writable/system-data")
+}
+
+func (s *DirsTestSuite) TestRootDirReexport(c *C) {
+	defer dirs.SetRootDir("")
+
+	// the mirror var and the rootdir package global are in sync
+	c.Check(dirs.GlobalRootDir, Equals, rootdir.RootDir)
+
+	// both setters are equivalent: dirs.SetRootDir updates rootdir.RootDir
+	tmp := c.MkDir()
+	dirs.SetRootDir(tmp)
+	c.Check(rootdir.RootDir, Equals, tmp)
+	c.Check(dirs.GlobalRootDir, Equals, tmp)
+	c.Check(dirs.SnapDataDir, Equals, filepath.Join(tmp, "/var/snap"))
+
+	// and rootdir.SetRootDir updates the dirs variables
+	other := c.MkDir()
+	rootdir.SetRootDir(other)
+	c.Check(dirs.GlobalRootDir, Equals, other)
+	c.Check(dirs.SnapDataDir, Equals, filepath.Join(other, "/var/snap"))
+}
+
+func (s *DirsTestSuite) TestRootDirCallbackOrder(c *C) {
+	defer dirs.SetRootDir("")
+
+	// a registered callback runs after the dirs variables are updated
+	dirs.AddRootDirCallback(func(rootdir string) {
+		c.Check(dirs.GlobalRootDir, Equals, rootdir)
+		c.Check(dirs.SnapRunDir, Equals, filepath.Join(rootdir, "/run/snapd"))
+	})
+	dirs.SetRootDir(c.MkDir())
 }

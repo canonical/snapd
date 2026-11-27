@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/fips"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,8 +40,8 @@ var _ = Suite(&fipsSuite{})
 func (s *fipsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
+	rootdir.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { rootdir.SetRootDir("") })
 }
 
 func mockFipsEnabledWithContent(c *C, root, content string) {
@@ -53,7 +53,7 @@ func mockFipsEnabledWithContent(c *C, root, content string) {
 }
 
 func (s *fipsSuite) TestFIPSIsEnabled(c *C) {
-	mockFipsEnabledWithContent(c, dirs.GlobalRootDir, "1\n")
+	mockFipsEnabledWithContent(c, rootdir.RootDir, "1\n")
 
 	res, err := fips.IsEnabled()
 	c.Assert(err, IsNil)
@@ -61,7 +61,7 @@ func (s *fipsSuite) TestFIPSIsEnabled(c *C) {
 }
 
 func (s *fipsSuite) TestFIPSIsDisabled(c *C) {
-	mockFipsEnabledWithContent(c, dirs.GlobalRootDir, "0\n")
+	mockFipsEnabledWithContent(c, rootdir.RootDir, "0\n")
 
 	res, err := fips.IsEnabled()
 	c.Assert(err, IsNil)
@@ -69,7 +69,7 @@ func (s *fipsSuite) TestFIPSIsDisabled(c *C) {
 }
 
 func (s *fipsSuite) TestFIPSFilePresentButWeirdContent(c *C) {
-	mockFipsEnabledWithContent(c, dirs.GlobalRootDir, "\n")
+	mockFipsEnabledWithContent(c, rootdir.RootDir, "\n")
 
 	res, err := fips.IsEnabled()
 	c.Assert(err, IsNil)
@@ -77,7 +77,7 @@ func (s *fipsSuite) TestFIPSFilePresentButWeirdContent(c *C) {
 }
 
 func (s *fipsSuite) TestFIPSNoFile(c *C) {
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/proc/sys/crypto/fips_enabled"), testutil.FileAbsent)
+	c.Assert(filepath.Join(rootdir.RootDir, "/proc/sys/crypto/fips_enabled"), testutil.FileAbsent)
 	res, err := fips.IsEnabled()
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, false)
@@ -88,9 +88,9 @@ func (s *fipsSuite) TestFIPSFileNotReadable(c *C) {
 		c.Skip("test cannot be executed by root")
 	}
 
-	mockFipsEnabledWithContent(c, dirs.GlobalRootDir, "\n")
+	mockFipsEnabledWithContent(c, rootdir.RootDir, "\n")
 
-	err := os.Chmod(filepath.Join(dirs.GlobalRootDir, "/proc/sys/crypto/fips_enabled"), 0o000)
+	err := os.Chmod(filepath.Join(rootdir.RootDir, "/proc/sys/crypto/fips_enabled"), 0o000)
 	c.Assert(err, IsNil)
 
 	res, err := fips.IsEnabled()

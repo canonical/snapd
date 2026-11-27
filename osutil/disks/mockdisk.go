@@ -25,8 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/rootdir"
 )
 
 var _ = Disk(&MockDiskMapping{})
@@ -344,14 +344,14 @@ func resolveName(deviceName string) (string, error) {
 		return "", err
 	} else if res == "" {
 		// did not exist, try again but with corrected path
-		if res, err := resolve(path.Join(dirs.GlobalRootDir, deviceName)); err != nil {
+		if res, err := resolve(path.Join(rootdir.RootDir, deviceName)); err != nil {
 			return "", err
 		} else if res == "" {
 			// did not exist at all, meaning we assume it's the name of
 			// the device, not a path
 			return deviceName, nil
 		} else {
-			return strings.TrimPrefix(res, dirs.GlobalRootDir), nil
+			return strings.TrimPrefix(res, rootdir.RootDir), nil
 		}
 	} else {
 		return res, nil

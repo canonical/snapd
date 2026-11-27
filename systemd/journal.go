@@ -24,9 +24,10 @@ import (
 	"log/syslog"
 	"net"
 	"os"
+	"path/filepath"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/osutil/rootdir"
 )
 
 // JournalStreamFileParams contains configuration parameters for the journal stream.
@@ -51,9 +52,9 @@ func NewJournalStreamFile(params JournalStreamFileParams) (*os.File, error) {
 
 	var journalPath string
 	if params.Namespace != "" {
-		journalPath = fmt.Sprintf("%s/journal.%s/stdout", dirs.SnapSystemdRunDir, params.Namespace)
+		journalPath = fmt.Sprintf("%s/journal.%s/stdout", filepath.Join(rootdir.RootDir, "/run/systemd"), params.Namespace)
 	} else {
-		journalPath = fmt.Sprintf("%s/journal/stdout", dirs.SnapSystemdRunDir)
+		journalPath = fmt.Sprintf("%s/journal/stdout", filepath.Join(rootdir.RootDir, "/run/systemd"))
 	}
 
 	conn, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: journalPath})
