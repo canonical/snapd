@@ -1,0 +1,7 @@
+[
+    "/usr/lib/@DEB_ARCH@/libbpf.so.1",
+    "/usr/lib/@DEB_ARCH@/libgcc_s.so.1",
+    "/usr/lib/@DEB_ARCH@/libkmod.so.2",
+    "/usr/lib/@DEB_ARCH@/libseccomp.so.2",
+    "/usr/lib/@DEB_ARCH@/libpam.so.0"
+]

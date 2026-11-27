@@ -47,6 +47,7 @@ Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
          tar,
          udev,
          util-linux,
+         dh-dlopenlibdeps,
          amd64-microcode [amd64],
          intel-microcode [amd64],
          libteec1 [arm64 armhf]
