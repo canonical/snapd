@@ -33,7 +33,7 @@ import (
 
 type cmdChangeTimings struct {
 	changeIDMixin
-	EnsureTag  string `long:"ensure" choice:"auto-refresh" choice:"become-operational" choice:"refresh-catalogs" choice:"refresh-hints" choice:"seed" choice:"install-system"`
+	EnsureTag  string `long:"ensure" choice:"auto-refresh" choice:"become-operational" choice:"refresh-catalogs" choice:"refresh-hints" choice:"seed" choice:"install-system" choice:"factory-reset"`
 	All        bool   `long:"all"`
 	StartupTag string `long:"startup" choice:"load-state" choice:"ifacemgr"`
 	Verbose    bool   `long:"verbose"`
@@ -46,7 +46,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdChangeTimings{}
 		}, changeIDMixinOptDesc.also(map[string]string{
-			"ensure":  i18n.G("Show timings for a change related to the given Ensure activity (one of: auto-refresh, become-operational, refresh-catalogs, refresh-hints, seed)"),
+			"ensure":  i18n.G("Show timings for a change related to the given Ensure activity (one of: auto-refresh, become-operational, refresh-catalogs, refresh-hints, seed, install-system, factory-reset)"),
 			"all":     i18n.G("Show timings for all executions of the given Ensure or startup activity, not just the latest"),
 			"startup": i18n.G("Show timings for the startup of given subsystem (one of: load-state, ifacemgr)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
