@@ -146,7 +146,16 @@ func (s *kernelCommandLineSuite) TestRunSystem(c *C) {
 			err: "cannot specify run system status without a run system",
 		}, {
 			cmd: "snapd_recovery_mode=run snapd_run_system=",
-			err: "cannot specify run system status without a run system",
+			err: "cannot specify an empty run system",
+		}, {
+			cmd: "snapd_recovery_mode=run snapd_run_system",
+			err: "cannot specify an empty run system",
+		}, {
+			cmd: "snapd_recovery_mode=run snapd_run_system= snapd_run_system_status=trying",
+			err: "cannot specify an empty run system",
+		}, {
+			cmd: "snapd_recovery_mode=recover snapd_run_system=",
+			err: "cannot specify an empty run system",
 		}, {
 			cmd: "snapd_recovery_mode=recover snapd_run_system=poc-b",
 			err: `cannot specify run system "poc-b" outside run mode`,

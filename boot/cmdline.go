@@ -68,15 +68,21 @@ func RunSystemFromKernelCommandLine() (*RunSystemBoot, error) {
 
 	label, hasLabel := m["snapd_run_system"]
 	status, hasStatus := m["snapd_run_system_status"]
-	if !hasLabel && !hasStatus {
-		return nil, nil
-	}
-	if !hasLabel || label == "" {
+	if !hasLabel {
+		if !hasStatus {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("cannot specify run system status without a run system")
 	}
+
+	if label == "" {
+		return nil, fmt.Errorf("cannot specify an empty run system")
+	}
+
 	if m["snapd_recovery_mode"] != ModeRun {
 		return nil, fmt.Errorf("cannot specify run system %q outside run mode", label)
 	}
+
 	if err := asserts.IsValidSystemLabel(label); err != nil {
 		return nil, err
 	}
