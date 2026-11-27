@@ -39,6 +39,7 @@ func CurrentRunSystem() (*RunSystemState, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	vars, err := bl.GetBootVars("run_system", "try_run_system")
 	if err != nil {
 		return nil, err
@@ -50,17 +51,26 @@ func SetTryRunSystem(systemLabel string) error {
 	if err := asserts.IsValidSystemLabel(systemLabel); err != nil {
 		return err
 	}
+
+	// Serialize the read/check/write against other run system and boot
+	// variable updates, as some bootloaders rewrite the whole environment.
+	modeenvLock()
+	defer modeenvUnlock()
+
 	bl, err := runSystemBootloader()
 	if err != nil {
 		return err
 	}
+
 	vars, err := bl.GetBootVars("run_system", "try_run_system")
 	if err != nil {
 		return err
 	}
+
 	if currentTry := vars["try_run_system"]; currentTry != "" && currentTry != systemLabel {
 		return fmt.Errorf("cannot try run system %q while %q is pending", systemLabel, currentTry)
 	}
+
 	if vars["run_system"] == systemLabel {
 		return bl.SetBootVars(map[string]string{"try_run_system": ""})
 	}
@@ -73,14 +83,20 @@ func ClearTryRunSystem(systemLabel string) error {
 			return err
 		}
 	}
+
+	modeenvLock()
+	defer modeenvUnlock()
+
 	bl, err := runSystemBootloader()
 	if err != nil {
 		return err
 	}
+
 	vars, err := bl.GetBootVars("try_run_system")
 	if err != nil {
 		return err
 	}
+
 	if systemLabel != "" && vars["try_run_system"] != "" && vars["try_run_system"] != systemLabel {
 		return fmt.Errorf("cannot clear run system %q while %q is pending", systemLabel, vars["try_run_system"])
 	}
