@@ -1240,6 +1240,19 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNop(c *C) {
 	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, true)
 }
 
+func (s *assertMgrSuite) TestRefreshSnapDeclarationsBrokenSnapsState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setModel(sysdb.GenericClassicModel())
+
+	// a "snaps" entry that cannot be unmarshalled into snap states
+	s.state.Set("snaps", "broken")
+
+	err := assertstate.RefreshSnapDeclarations(s.state, 0, nil)
+	c.Assert(err, ErrorMatches, `internal error: could not unmarshal state entry "snaps": json: cannot unmarshal string .*`)
+}
+
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
