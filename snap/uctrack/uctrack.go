@@ -30,6 +30,7 @@ import (
 	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	snapchannel "github.com/snapcore/snapd/snap/channel"
 )
@@ -37,95 +38,24 @@ import (
 // Errors reported by [Resolve]. They are wrapped, so callers must test them
 // with [errors.Is] rather than by comparison.
 var (
-	// ErrNotApplicable indicates that track policy does not apply to the
-	// model. [Resolve] returns it for classic and hybrid classic models, for
-	// a boot base that is not a coreXX snap, and for Ubuntu Core 16.
+	// ErrNotApplicable indicates that track policy does not apply.
+	// [Resolve] returns it for classic and hybrid classic models, for a boot
+	// base that is not a coreXX snap, for Ubuntu Core 16, for an empty
+	// tracking channel, for a boot base with no track map, and for a tracking
+	// track that is neither an input nor a target. Callers pass the channel
+	// through unchanged. A requested track outside the map is not this error.
 	ErrNotApplicable = errors.New("cannot use Ubuntu Core tracks")
-	// ErrBootBaseNotCovered indicates that the model's boot base has no
-	// entry in the map yet. Callers pass the channel through unchanged: no
-	// restriction applies until the boot base is onboarded.
-	ErrBootBaseNotCovered = errors.New("cannot find Ubuntu Core track map for boot base")
-	// ErrNoTrack indicates that the boot base is covered but the input
-	// track is neither a key nor a target of its map. Callers pass the
-	// channel through unchanged.
-	ErrNoTrack = errors.New("cannot find Ubuntu Core track")
 )
 
-// Resolve remaps the planned store channel for model, keeping its risk and
-// dropping any branch. A classic model returns [ErrNotApplicable]. A channel
-// without a track means latest, as in the store. tracks is normally
-// [snap.Info.UbuntuCoreTracks] of the snapd snap being planned; an empty or
-// nil map is valid.
-//
-// It fails with [ErrNotApplicable], [ErrBootBaseNotCovered] or [ErrNoTrack]
-// when policy cannot be applied.
-func Resolve(model *asserts.Model, channel string, tracks snap.UbuntuCoreTracks) (string, error) {
+// SystemBootBaseApplicable returns the boot base version to consult for
+// track policy, as reported by [asserts.Model.BaseCoreVersion]. It returns
+// [ErrNotApplicable] for classic, hybrid classic, a boot base that is not a
+// coreXX snap, and Ubuntu Core 16. It does not consult a track map. A nil
+// model is an internal error.
+func SystemBootBaseApplicable(model *asserts.Model) (int, error) {
 	if model == nil {
-		return "", errors.New("internal error: cannot use nil model")
+		return 0, errors.New("internal error: cannot use nil model")
 	}
-
-	parsed, err := snapchannel.ParseVerbatim(channel, "-")
-	if err != nil {
-		return "", fmt.Errorf("cannot parse input channel: %v", err)
-	}
-	inputTrack := parsed.Track
-	if inputTrack == "" {
-		inputTrack = "latest"
-	}
-
-	bootBase, err := systemBootBaseApplicable(model)
-	if err != nil {
-		return "", err
-	}
-
-	ucTrack, err := resolveUCTrack(tracks, bootBase, inputTrack)
-	if err != nil {
-		return "", err
-	}
-
-	parsed.Track = ucTrack
-	parsed.Branch = ""
-	return parsed.Clean().String(), nil
-}
-
-// resolveUCTrack looks up the target track for bootBase and inputTrack in
-// tracks. bootBase is the Ubuntu Core version taken from the model, matched
-// against the plain number keys of [snap.UbuntuCoreTracks] ("18", "20", ...).
-func resolveUCTrack(tracks snap.UbuntuCoreTracks, bootBase int, inputTrack string) (string, error) {
-	baseTrackMap, ok := tracks[strconv.Itoa(bootBase)]
-	if !ok {
-		return "", fmt.Errorf("%w %d", ErrBootBaseNotCovered, bootBase)
-	}
-	ucTrack, found := lookupUCTrack(baseTrackMap, inputTrack)
-	if !found {
-		return "", fmt.Errorf("%w %s for boot base %d", ErrNoTrack, inputTrack, bootBase)
-	}
-	return ucTrack, nil
-}
-
-// lookupUCTrack returns the target track for inputTrack, and whether one was
-// found. Keys describe a transition, such as latest to 18. An input that
-// already matches a target, such as "18" after an earlier jump, is kept as
-// is. An explicit key wins over that, so a later onboard can remap onward by
-// declaring "18": "24".
-func lookupUCTrack(baseTrackMap map[string]string, inputTrack string) (string, bool) {
-	if ucTrack, ok := baseTrackMap[inputTrack]; ok && ucTrack != "" {
-		return ucTrack, true
-	}
-	// Already on a target track (e.g. "18" after a previous jump): keep it.
-	for _, target := range baseTrackMap {
-		if target != "" && target == inputTrack {
-			return inputTrack, true
-		}
-	}
-	return "", false
-}
-
-// systemBootBaseApplicable returns the boot base version to consult for
-// track policy, as reported by [asserts.Model.BaseCoreVersion]. It fails with
-// [ErrNotApplicable] when the model's system type or boot base puts it out of
-// scope.
-func systemBootBaseApplicable(model *asserts.Model) (int, error) {
 	if model.Classic() {
 		if model.HybridClassic() {
 			return 0, fmt.Errorf("%w on a hybrid classic system", ErrNotApplicable)
@@ -144,4 +74,129 @@ func systemBootBaseApplicable(model *asserts.Model) (int, error) {
 		return 0, fmt.Errorf("%w: unsupported Ubuntu Core 16 model", ErrNotApplicable)
 	}
 	return bootBase, nil
+}
+
+// Resolve remaps a snapd store channel for model.
+// trackingChannel is the channel snapd is tracking. requestedChannel is the
+// channel the caller asked for, or empty when there is no request.
+//
+// The request is considered only after the tracking channel satisfies the
+// map. A tracking track that is an input moves to that input's target, keeping
+// the tracking risk and dropping the branch. A tracking track that is only a
+// target stays, including its risk and branch. A track that is both follows
+// the hop instead, because input membership is tested first. That lookup's
+// target is not looked up again.
+//
+// A requested track that is an input is a second map lookup of that input's
+// target, not the tracking hop, and does not use the channel carried in from
+// the tracking decision. The request supplies the risk and the branch is
+// dropped. A requested track that is only a target is used with its risk and
+// branch. A requested track that is neither is ignored.
+//
+// An empty tracking channel, a boot base the map does not cover, and a
+// tracking track that is neither an input nor a target return [ErrNotApplicable]
+// and an empty channel, so the caller keeps its own channel. An unparseable
+// channel is an internal error.
+//
+// A channel without a track means latest. The returned channel is cleaned, so
+// a latest track is omitted. tracks is normally [snap.Info.UbuntuCoreTracks].
+func Resolve(model *asserts.Model, trackingChannel, requestedChannel string, tracks snap.UbuntuCoreTracks) (string, error) {
+	bootBase, err := SystemBootBaseApplicable(model)
+	if err != nil {
+		return "", err
+	}
+
+	if trackingChannel == "" {
+		return "", fmt.Errorf("%w: empty tracking channel", ErrNotApplicable)
+	}
+	normTrackingChannel, err := normalizeChannel(trackingChannel, "tracking")
+	if err != nil {
+		return "", err
+	}
+
+	pairs, ok := tracks[strconv.Itoa(bootBase)]
+	if !ok {
+		return "", fmt.Errorf("%w: no track map for boot base %d", ErrNotApplicable, bootBase)
+	}
+
+	// The request is considered only after the tracking channel satisfies the
+	// map. Input membership is tested before target membership, so a track
+	// that is both follows the hop instead.
+	trackingTarget, trackingRole := classifyTrack(pairs, normTrackingChannel.Track)
+	if trackingRole == trackNeither {
+		return "", fmt.Errorf("%w: no track %s for boot base %d", ErrNotApplicable, normTrackingChannel.Track, bootBase)
+	}
+	carried := normTrackingChannel
+	if trackingRole == trackInput {
+		carried.Track = trackingTarget
+		carried.Branch = ""
+	}
+	carriedChannel := carried.Clean().String()
+
+	if requestedChannel == "" {
+		return carriedChannel, nil
+	}
+	normRequestedChannel, err := normalizeChannel(requestedChannel, "requested")
+	if err != nil {
+		return "", err
+	}
+
+	// A requested input is a second map lookup of that input's target, not
+	// the tracking hop, and does not use the channel carried in from tracking.
+	requestedTarget, requestedRole := classifyTrack(pairs, normRequestedChannel.Track)
+	switch requestedRole {
+	case trackInput:
+		normRequestedChannel.Track = requestedTarget
+		normRequestedChannel.Branch = ""
+		result := normRequestedChannel.Clean().String()
+		if trackingRole == trackTargetOnly {
+			logger.Noticef("rewrote requested channel %q to %q", requestedChannel, result)
+		}
+		return result, nil
+	case trackTargetOnly:
+		return normRequestedChannel.Clean().String(), nil
+	default:
+		logger.Noticef("ignoring requested channel %q, using %q", requestedChannel, carriedChannel)
+		return carriedChannel, nil
+	}
+}
+
+// normalizeChannel parses channel for track policy. An omitted track is
+// latest, as in the store. The branch is kept. what names the channel in the
+// error.
+func normalizeChannel(channel, what string) (snapchannel.Channel, error) {
+	parsed, err := snapchannel.ParseVerbatim(channel, "-")
+	if err != nil {
+		return snapchannel.Channel{}, fmt.Errorf("internal error: cannot parse %s channel: %v", what, err)
+	}
+	if parsed.Track == "" {
+		parsed.Track = "latest"
+	}
+	return parsed, nil
+}
+
+// trackRole is how a track sits in one boot base's pairs.
+type trackRole int
+
+const (
+	trackNeither trackRole = iota
+	trackInput
+	trackTargetOnly
+)
+
+// classifyTrack reports whether track is an input, only a target, or neither
+// for one boot base. Input membership is tested before target membership. A
+// track that is both follows the hop instead, because input membership is
+// tested first. The returned target is that one hop: an input's map value is
+// not looked up again. An empty map value is not an input or a target.
+func classifyTrack(pairs map[string]string, track string) (target string, role trackRole) {
+	if mapped, ok := pairs[track]; ok && mapped != "" {
+		return mapped, trackInput
+	}
+	for _, mapped := range pairs {
+		if mapped != "" && mapped == track {
+			return track, trackTargetOnly
+		}
+	}
+	return "", trackNeither
 }

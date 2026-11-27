@@ -21,12 +21,14 @@ package uctrack_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/uctrack"
 )
@@ -54,6 +56,11 @@ var tracks18 = snap.UbuntuCoreTracks{
 // tracks18Latest onboards boot base 18 for the latest track only.
 var tracks18Latest = snap.UbuntuCoreTracks{
 	"18": {"latest": "18"},
+}
+
+// tracks18Chain adds an onward pair. 18 is an input, so it is not only a target.
+var tracks18Chain = snap.UbuntuCoreTracks{
+	"18": {"latest": "18", "fips-updates": "18-fips", "18": "24"},
 }
 
 func (s *ucSuite) coreModel(base, gadget, kernel string) *asserts.Model {
@@ -102,14 +109,134 @@ func (s *ucSuite) hybridClassicModel(base string) *asserts.Model {
 	}).(*asserts.Model)
 }
 
-func (s *ucSuite) TestResolveUC18Remap(c *C) {
+type modelCase struct {
+	label string
+	model *asserts.Model
+	err   string
+}
+
+func (s *ucSuite) outOfScopeModels() []modelCase {
+	return []modelCase{
+		{"classic", s.classicModel(), "cannot use Ubuntu Core tracks on a classic system"},
+		{"hybrid classic", s.hybridClassicModel("core22"), "cannot use Ubuntu Core tracks on a hybrid classic system"},
+		{"bare base", s.coreModel("bare", "pc", "pc-kernel"), `cannot use Ubuntu Core tracks: "bare" is not a core boot base`},
+		{"non-core base", s.coreModel("alt-base", "pc", "pc-kernel"), `cannot use Ubuntu Core tracks: "alt-base" is not a core boot base`},
+		// UC16 uses the core snap as both base and snapd.
+		{"uc16 with no base", s.coreModel("", "pc", "pc-kernel"), "cannot use Ubuntu Core tracks: unsupported Ubuntu Core 16 model"},
+		{"uc16 core snap", s.coreModel("core", "pc", "pc-kernel"), "cannot use Ubuntu Core tracks: unsupported Ubuntu Core 16 model"},
+		{"uc16", s.coreModel("core16", "pc", "pc-kernel"), "cannot use Ubuntu Core tracks: unsupported Ubuntu Core 16 model"},
+	}
+}
+
+func (s *ucSuite) TestSystemBootBaseApplicableReturnsVersion(c *C) {
+	bootBase, err := uctrack.SystemBootBaseApplicable(s.coreModel("core18", "pc=18", "pc-kernel=18"))
+	c.Assert(err, IsNil)
+	c.Check(bootBase, Equals, 18)
+}
+
+func (s *ucSuite) TestSystemBootBaseApplicableNilModel(c *C) {
+	_, err := uctrack.SystemBootBaseApplicable(nil)
+	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
+}
+
+func (s *ucSuite) TestSystemBootBaseApplicableNotApplicable(c *C) {
+	for _, t := range s.outOfScopeModels() {
+		_, err := uctrack.SystemBootBaseApplicable(t.model)
+		c.Check(err, ErrorMatches, t.err, Commentf("%s", t.label))
+		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("%s", t.label))
+	}
+}
+
+func (s *ucSuite) TestResolveBootBaseNotApplicable(c *C) {
+	for _, t := range s.outOfScopeModels() {
+		for _, requested := range []string{"", "18/edge"} {
+			resolved, err := uctrack.Resolve(t.model, "latest/stable", requested, tracks18Latest)
+			c.Check(err, ErrorMatches, t.err, Commentf("%s requested %q", t.label, requested))
+			c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("%s requested %q", t.label, requested))
+			c.Check(resolved, Equals, "", Commentf("%s requested %q", t.label, requested))
+		}
+	}
+}
+
+func (s *ucSuite) TestResolveEmptyTrackingChannelNotApplicable(c *C) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+
+	// The requested channel is not consulted when nothing is being tracked,
+	// including a channel that would not parse.
+	for _, requested := range []string{"", "stable", "latest/stable", "fips-updates/stable", "20/stable", "other/stable", "foo/bar/baz/quux"} {
+		resolved, err := uctrack.Resolve(model, "", requested, tracks18)
+		c.Assert(err, ErrorMatches, "cannot use Ubuntu Core tracks: empty tracking channel", Commentf("requested %q", requested))
+		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("requested %q", requested))
+		c.Check(resolved, Equals, "", Commentf("requested %q", requested))
+	}
+}
+
+func (s *ucSuite) TestResolveBootBaseWithoutTrackMapNotApplicable(c *C) {
+	// Boot base 22 has no entry. The map only onboards 18.
+	model := s.coreModel("core22", "pc=22", "pc-kernel=22")
+
+	for _, channel := range []string{"latest/stable", "22/stable", "stable"} {
+		for _, requested := range []string{"", "18/edge"} {
+			resolved, err := uctrack.Resolve(model, channel, requested, tracks18Latest)
+			c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track map for boot base 22`, Commentf("channel %q requested %q", channel, requested))
+			c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("channel %q requested %q", channel, requested))
+			c.Check(resolved, Equals, "", Commentf("channel %q requested %q", channel, requested))
+		}
+	}
+}
+
+func (s *ucSuite) TestResolveEmptyOrNilTrackMapNotApplicable(c *C) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+
+	for _, tracks := range []snap.UbuntuCoreTracks{{}, nil} {
+		resolved, err := uctrack.Resolve(model, "latest/stable", "18/stable", tracks)
+		c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track map for boot base 18`)
+		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true)
+		c.Check(resolved, Equals, "")
+	}
+}
+
+func (s *ucSuite) TestResolveUnknownTrackingTrackNotApplicable(c *C) {
+	// The tracking track is neither an input nor a target, so the request is
+	// not considered. Resolve returns no channel.
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
 
 	for _, t := range []struct {
-		channel string
-		want    string
+		tracking  string
+		requested string
+		track     string
 	}{
-		// latest variant -> 18 track, risk preserved
+		{"preview/stable", "", "preview"},
+		{"preview/stable", "18/edge", "preview"},
+		{"preview/stable", "latest/edge", "preview"},
+		{"20/stable", "18/edge", "20"},
+		{"24/edge", "latest/edge", "24"},
+	} {
+		resolved, err := uctrack.Resolve(model, t.tracking, t.requested, tracks18)
+		c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track `+t.track+` for boot base 18`, Commentf("tracking %q requested %q", t.tracking, t.requested))
+		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("tracking %q requested %q", t.tracking, t.requested))
+		c.Check(resolved, Equals, "", Commentf("tracking %q requested %q", t.tracking, t.requested))
+	}
+}
+
+func (s *ucSuite) TestResolveBootBaseKeyWithNoPairsNotApplicable(c *C) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+	tracks := snap.UbuntuCoreTracks{"18": {}}
+
+	resolved, err := uctrack.Resolve(model, "latest/stable", "", tracks)
+	c.Assert(err, ErrorMatches, `cannot use Ubuntu Core tracks: no track latest for boot base 18`)
+	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true)
+	c.Check(resolved, Equals, "")
+}
+
+func (s *ucSuite) TestResolveEmptyRequestedChannelRemapsTracking(c *C) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+
+	for _, t := range []struct {
+		tracking string
+		want     string
+	}{
+		// An omitted track means latest. The risk is kept. A transition drops the branch.
 		{"latest/stable", "18/stable"},
 		{"latest/candidate", "18/candidate"},
 		{"latest/beta", "18/beta"},
@@ -118,130 +245,177 @@ func (s *ucSuite) TestResolveUC18Remap(c *C) {
 		{"beta", "18/beta"},
 		{"latest", "18/stable"},
 		{"edge", "18/edge"},
-		// fips-updates variant -> 18-fips track
+		// A transition drops the branch.
+		{"latest/stable/mybranch", "18/stable"},
+		{"latest/beta/hotfix", "18/beta"},
 		{"fips-updates/stable", "18-fips/stable"},
 		{"fips-updates/candidate", "18-fips/candidate"},
 	} {
-		resolved, err := uctrack.Resolve(model, t.channel, tracks18)
-		c.Assert(err, IsNil, Commentf("channel %q", t.channel))
-		c.Check(resolved, Equals, t.want, Commentf("channel %q", t.channel))
+		resolved, err := uctrack.Resolve(model, t.tracking, "", tracks18)
+		c.Assert(err, IsNil, Commentf("tracking %q", t.tracking))
+		c.Check(resolved, Equals, t.want, Commentf("tracking %q", t.tracking))
 	}
 }
 
-func (s *ucSuite) TestResolveUC18Identity(c *C) {
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-
-	for _, channel := range []string{
-		"18/stable",
-		"18/candidate",
-		"18-fips/stable",
-		"18-fips/beta",
-	} {
-		resolved, err := uctrack.Resolve(model, channel, tracks18)
-		c.Assert(err, IsNil, Commentf("channel %q", channel))
-		c.Check(resolved, Equals, channel, Commentf("channel %q", channel))
-	}
-}
-
-func (s *ucSuite) TestResolveExplicitKeyWinsOverIdentity(c *C) {
-	// A later onboard can remap a track onward with an explicit key.
-	tracks := snap.UbuntuCoreTracks{
-		"18": {"latest": "24", "18": "24"},
-	}
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-
-	resolved, err := uctrack.Resolve(model, "latest/stable", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "24/stable")
-
-	resolved, err = uctrack.Resolve(model, "18/stable", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "24/stable")
-
-	resolved, err = uctrack.Resolve(model, "24/edge", tracks)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "24/edge")
-}
-
-func (s *ucSuite) TestResolveUncoveredBootBaseErrors(c *C) {
-	// Boot base 22 is not covered (not in the map; 18 is onboarded).
-	model := s.coreModel("core22", "pc=22", "pc-kernel=22")
-
-	for _, channel := range []string{"latest/stable", "22/stable", "stable"} {
-		_, err := uctrack.Resolve(model, channel, tracks18Latest)
-		c.Assert(err, ErrorMatches, `cannot find Ubuntu Core track map for boot base 22`, Commentf("channel %q", channel))
-		c.Check(errors.Is(err, uctrack.ErrBootBaseNotCovered), Equals, true, Commentf("channel %q", channel))
-	}
-}
-
-func (s *ucSuite) TestResolveBranchDropped(c *C) {
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-	resolved, err := uctrack.Resolve(model, "latest/stable/mybranch", tracks18Latest)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "18/stable")
-}
-
-func (s *ucSuite) TestResolveLatestTargetCollapses(c *C) {
+func (s *ucSuite) TestResolveLatestTargetRendersImplicitTrack(c *C) {
 	// "latest" is a valid target, but it is the default track and so is
-	// rendered implicitly. The store reads the result as latest/stable.
-	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-	resolved, err := uctrack.Resolve(model, "18/stable", snap.UbuntuCoreTracks{
+	// rendered implicitly. The store reads "stable" as latest/stable.
+	tracks := snap.UbuntuCoreTracks{
 		"18": {"18": "latest"},
-	})
+	}
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+
+	resolved, err := uctrack.Resolve(model, "18/stable", "", tracks)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "stable")
+
+	// A risk-only request has an omitted track, which means latest. latest is
+	// only a target here, so the requested risk and branch are kept.
+	resolved, err = uctrack.Resolve(model, "18/stable", "edge", tracks)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "edge")
+
+	resolved, err = uctrack.Resolve(model, "18/stable", "latest/beta/hotfix", tracks)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "beta/hotfix")
+
+	// 18 is an input, so the request follows 18 to latest and drops the branch.
+	resolved, err = uctrack.Resolve(model, "18/stable", "18/stable", tracks)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "stable")
 }
 
-func (s *ucSuite) TestResolveErrors(c *C) {
-	uc18 := s.coreModel("core18", "pc=18", "pc-kernel=18")
-
-	_, err := uctrack.Resolve(nil, "latest/stable", tracks18Latest)
+func (s *ucSuite) TestResolveNilModel(c *C) {
+	_, err := uctrack.Resolve(nil, "latest/stable", "", tracks18Latest)
 	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
-
-	_, err = uctrack.Resolve(uc18, "foo/bar/baz/quux", tracks18Latest)
-	c.Check(err, ErrorMatches, `cannot parse input channel: .*`)
-
-	// Unknown track on a covered boot base errors.
-	_, err = uctrack.Resolve(uc18, "20/stable", tracks18Latest)
-	c.Check(err, ErrorMatches, `cannot find Ubuntu Core track 20 for boot base 18`)
-	c.Check(errors.Is(err, uctrack.ErrNoTrack), Equals, true)
+	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, false)
 }
 
-func (s *ucSuite) TestResolveOutOfScopeNotApplicable(c *C) {
-	for _, t := range []struct {
-		model *asserts.Model
-		err   string
-	}{
-		{s.classicModel(), "cannot use Ubuntu Core tracks on a classic system"},
-		{s.hybridClassicModel("core22"), "cannot use Ubuntu Core tracks on a hybrid classic system"},
-		{s.coreModel("bare", "pc", "pc-kernel"), `cannot use Ubuntu Core tracks: "bare" is not a core boot base`},
-		{s.coreModel("alt-base", "pc", "pc-kernel"), `cannot use Ubuntu Core tracks: "alt-base" is not a core boot base`},
-		// UC16 has no separate snapd snap to apply tracks to
-		{s.coreModel("", "pc", "pc-kernel"), "cannot use Ubuntu Core tracks: unsupported Ubuntu Core 16 model"},
-		{s.coreModel("core", "pc", "pc-kernel"), "cannot use Ubuntu Core tracks: unsupported Ubuntu Core 16 model"},
-		{s.coreModel("core16", "pc", "pc-kernel"), "cannot use Ubuntu Core tracks: unsupported Ubuntu Core 16 model"},
-	} {
-		_, err := uctrack.Resolve(t.model, "latest/stable", tracks18Latest)
-		c.Check(err, ErrorMatches, t.err, Commentf("base %q", t.model.Base()))
-		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("base %q", t.model.Base()))
-	}
-}
-
-func (s *ucSuite) TestResolveUsesProvidedMap(c *C) {
+func (s *ucSuite) TestResolveInvalidTrackingChannel(c *C) {
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
 
-	// an empty or absent map covers no boot base at all
-	for _, tracks := range []snap.UbuntuCoreTracks{{}, nil} {
-		_, err := uctrack.Resolve(model, "latest/stable", tracks)
-		c.Assert(err, ErrorMatches, `cannot find Ubuntu Core track map for boot base 18`)
-		c.Check(errors.Is(err, uctrack.ErrBootBaseNotCovered), Equals, true)
+	_, err := uctrack.Resolve(model, "foo/bar/baz/quux", "", tracks18Latest)
+	c.Check(err, ErrorMatches, `internal error: cannot parse tracking channel: channel name has too many components: foo/bar/baz/quux`)
+	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, false)
+}
+
+func (s *ucSuite) TestResolveInvalidRequestedChannel(c *C) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+
+	resolved, err := uctrack.Resolve(model, "latest/stable", "foo/bar/baz/quux", tracks18Latest)
+	c.Check(err, ErrorMatches, `internal error: cannot parse requested channel: channel name has too many components: foo/bar/baz/quux`)
+	c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, false)
+	c.Check(resolved, Equals, "")
+}
+
+// logNone means the resolution is not logged. logIgnored means the requested
+// track is neither an input nor a target. logRewritten means the tracking
+// track is already a target and the requested track is an input.
+const (
+	logNone logKind = iota
+	logIgnored
+	logRewritten
+)
+
+type logKind int
+
+type resolveCase struct {
+	id        string
+	tracking  string
+	requested string
+	want      string
+	log       logKind
+}
+
+func (s *ucSuite) checkResolveCases(c *C, tracks snap.UbuntuCoreTracks, cases []resolveCase) {
+	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	for _, t := range cases {
+		logbuf.Reset()
+		resolved, err := uctrack.Resolve(model, t.tracking, t.requested, tracks)
+		comment := Commentf("%s tracking %q requested %q", t.id, t.tracking, t.requested)
+		c.Assert(err, IsNil, comment)
+		c.Check(resolved, Equals, t.want, comment)
+		switch t.log {
+		case logNone:
+			c.Check(logbuf.String(), Equals, "", comment)
+		case logIgnored:
+			c.Check(logbuf.String(), Matches, fmt.Sprintf(`(?s).*ignoring requested channel "%s", using "%s".*`, t.requested, t.want), comment)
+		case logRewritten:
+			c.Check(logbuf.String(), Matches, fmt.Sprintf(`(?s).*rewrote requested channel "%s" to "%s".*`, t.requested, t.want), comment)
+		}
 	}
+}
 
-	resolved, err := uctrack.Resolve(model, "latest/stable", tracks18)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "18/stable")
+func (s *ucSuite) TestResolveSimpleMap(c *C) {
+	s.checkResolveCases(c, tracks18, []resolveCase{
+		{"S1", "latest/stable", "", "18/stable", logNone},
+		{"S2", "latest/stable", "latest", "18/stable", logNone},
+		{"S3", "latest/stable", "stable", "18/stable", logNone},
+		{"S4", "latest/stable", "latest/stable", "18/stable", logNone},
+		{"S5", "latest/beta/hotfix", "", "18/beta", logNone},
+		{"S6", "latest/stable", "latest/edge", "18/edge", logNone},
+		{"S7", "latest/stable", "edge", "18/edge", logNone},
+		{"S8", "latest/stable", "fips-updates/beta", "18-fips/beta", logNone},
+		{"S9", "latest/beta", "fips-updates/stable", "18-fips/stable", logNone},
+		{"S10", "latest/stable", "latest/beta/hotfix", "18/beta", logNone},
+		{"S11", "latest/stable", "fips-updates/beta/hotfix", "18-fips/beta", logNone},
+		{"S12", "latest/stable", "18/edge", "18/edge", logNone},
+		{"S13", "latest/stable", "18/edge/hotfix", "18/edge/hotfix", logNone},
+		{"S14", "latest/beta", "18/stable", "18/stable", logNone},
+		{"S15", "latest/stable", "18", "18/stable", logNone},
+		{"S16", "latest/stable", "18-fips/stable", "18-fips/stable", logNone},
+		{"S17", "latest/beta", "preview/edge", "18/beta", logIgnored},
+		{"S18", "latest/beta/hotfix", "preview/edge", "18/beta", logIgnored},
+		{"S19", "latest/stable", "24/stable", "18/stable", logIgnored},
+		{"S20", "fips-updates/candidate", "", "18-fips/candidate", logNone},
+		{"S21", "fips-updates/candidate", "latest/edge", "18/edge", logNone},
+		{"S22", "18/stable", "", "18/stable", logNone},
+		{"S23", "18/edge/hotfix", "", "18/edge/hotfix", logNone},
+		{"S24", "18/stable", "18/edge", "18/edge", logNone},
+		{"S25", "18/stable", "18/beta/hotfix", "18/beta/hotfix", logNone},
+		{"S26", "18/edge/hotfix", "18/stable", "18/stable", logNone},
+		{"S27", "18/stable", "18-fips/beta", "18-fips/beta", logNone},
+		{"S28", "18/stable", "latest/edge", "18/edge", logRewritten},
+		{"S29", "18/stable", "edge", "18/edge", logRewritten},
+		{"S30", "18/stable", "latest/beta/hotfix", "18/beta", logRewritten},
+		{"S31", "18/edge/hotfix", "latest/stable", "18/stable", logRewritten},
+		{"S32", "18/stable", "fips-updates/beta", "18-fips/beta", logRewritten},
+		{"S33", "18/stable", "preview/edge", "18/stable", logIgnored},
+		{"S34", "18/edge/hotfix", "preview/stable", "18/edge/hotfix", logIgnored},
+		{"S35", "18/stable", "24/stable", "18/stable", logIgnored},
+		{"S36", "18-fips/stable", "", "18-fips/stable", logNone},
+		{"S37", "18-fips/beta", "18/edge", "18/edge", logNone},
+	})
+}
 
-	resolved, err = uctrack.Resolve(model, "fips-updates/candidate", tracks18)
-	c.Assert(err, IsNil)
-	c.Check(resolved, Equals, "18-fips/candidate")
+func (s *ucSuite) TestResolveChainMap(c *C) {
+	s.checkResolveCases(c, tracks18Chain, []resolveCase{
+		{"C1", "latest/stable", "", "18/stable", logNone},
+		{"C2", "latest/beta/hotfix", "", "18/beta", logNone},
+		{"C3", "latest/stable", "18/edge", "24/edge", logNone},
+		{"C4", "latest/stable", "18/edge/hotfix", "24/edge", logNone},
+		{"C5", "latest/stable", "24/edge", "24/edge", logNone},
+		{"C6", "latest/stable", "24/edge/hotfix", "24/edge/hotfix", logNone},
+		{"C7", "latest/stable", "latest/edge", "18/edge", logNone},
+		{"C8", "18/stable", "", "24/stable", logNone},
+		{"C9", "18/beta/hotfix", "", "24/beta", logNone},
+		{"C10", "18/stable", "18/edge", "24/edge", logNone},
+		{"C11", "18/stable", "24/edge", "24/edge", logNone},
+		{"C12", "18/stable", "latest/edge", "18/edge", logNone},
+		{"C13", "18/beta", "fips-updates/beta", "18-fips/beta", logNone},
+		{"C14", "18/stable", "preview/edge", "24/stable", logIgnored},
+		{"C15", "24/stable", "", "24/stable", logNone},
+		{"C16", "24/edge/hotfix", "", "24/edge/hotfix", logNone},
+		{"C17", "24/stable", "18/stable", "24/stable", logRewritten},
+		{"C18", "24/stable", "18/beta/hotfix", "24/beta", logRewritten},
+		{"C19", "24/stable", "latest/edge", "18/edge", logRewritten},
+		{"C20", "24/stable", "fips-updates/beta", "18-fips/beta", logRewritten},
+		{"C21", "24/stable", "24/edge", "24/edge", logNone},
+		{"C22", "24/stable", "18-fips/stable", "18-fips/stable", logNone},
+		{"C23", "24/stable", "preview/edge", "24/stable", logIgnored},
+		{"C24", "24/beta/hotfix", "latest/stable", "18/stable", logRewritten},
+	})
 }
