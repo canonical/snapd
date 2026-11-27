@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -31,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,6 +42,8 @@ import (
 
 type activateStateSuite struct {
 	testutil.BaseTest
+
+	cmdlineFile string
 }
 
 var _ = Suite(&activateStateSuite{})
@@ -69,6 +73,10 @@ func (checker *serializesToChecker) Check(params []any, names []string) (bool, s
 
 func (s *activateStateSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	s.cmdlineFile = filepath.Join(c.MkDir(), "cmdline")
+	c.Assert(os.WriteFile(s.cmdlineFile, []byte("snapd_recovery_mode=run"), 0644), IsNil)
+	s.AddCleanup(kcmdline.MockProcCmdline(s.cmdlineFile))
 }
 
 func (s *activateStateSuite) TestActivateStateHappy(c *C) {
@@ -111,6 +119,58 @@ func (s *activateStateSuite) TestActivateStateHappy(c *C) {
 	_, err = fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 	c.Check(calls, Equals, 1)
+}
+
+func (s *activateStateSuite) testActivateStateInstallBoot(c *C, active bool) {
+	c.Assert(os.WriteFile(s.cmdlineFile, []byte("snapd_recovery_mode=install"), 0644), IsNil)
+
+	defer fdestate.MockBootLoadDiskUnlockState(func(name string) (*boot.DiskUnlockState, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})()
+
+	defer fdestate.MockFdestateSystemEncryptedFromState(func(st *state.State) (bool, error) {
+		return active, nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("fde", fdestate.FdeState{})
+
+	systemState, err := fdestate.SystemState(st, nil)
+	c.Assert(err, IsNil)
+
+	var expectedStatus string
+	if active {
+		expectedStatus = "active"
+	} else {
+		expectedStatus = "inactive"
+	}
+
+	c.Check(systemState, SerializesTo, map[string]any{
+		"status":             expectedStatus,
+		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
+	})
+
+	// Let's check the file is cached
+	_, err = fdestate.SystemState(st, nil)
+	c.Assert(err, IsNil)
+}
+
+func (s *activateStateSuite) TestActivateStateInstallBootActive(c *C) {
+	const active = true
+	s.testActivateStateInstallBoot(c, active)
+}
+
+func (s *activateStateSuite) TestActivateStateInstallBootInactive(c *C) {
+	const active = false
+	s.testActivateStateInstallBoot(c, active)
 }
 
 func (s *activateStateSuite) TestActivateStateHappyWithAutoRepairState(c *C) {

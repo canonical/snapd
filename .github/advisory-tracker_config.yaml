@@ -1,0 +1,40 @@
+# Children of this issue track snapd GitHub security advisories.
+# Ticket creation is refused unless the parent has a child of issue_type,
+# so the epic is confirmed as a container for that type. Ticket summaries
+# are not required to be codenames; existing tickets keep the summary they
+# already have.
+# A new advisory is not expected to have a petname. The name is chosen when
+# its Jira ticket is created, then appended to the advisory. If the ticket
+# already exists and the advisory has no petname yet, that ticket's petname
+# is appended on sync.
+parent_key: SNAPDENG-37541
+project_key: SNAPDENG
+issue_type: Bug
+
+# States that may open a new ticket. Published and closed advisories are left
+# alone when they have no ticket.
+create_for_states:
+  - triage
+  - draft
+
+# Advisory severity, when GitHub has set one. Anything else is Medium.
+priority_map:
+  critical: Highest
+  high: High
+  medium: Medium
+  low: Low
+
+# An advisory is ready for a ticket when it has a summary and a description
+# of at least min_description_chars. Shorter writeups stay not_ready.
+readiness:
+  min_description_chars: 80
+
+# Both events use MATTERMOST_NEW_ADVISORY_WEBHOOK_URL.
+# created is one message per new ticket.
+# not_created is one message for the run when a triage or draft advisory
+# still has no ticket. The message links to the Actions run summary.
+notify:
+  created:
+    - mattermost
+  not_created:
+    - mattermost
