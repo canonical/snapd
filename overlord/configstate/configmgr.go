@@ -56,9 +56,13 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
 		return err
 	}
+	if err := configcore.MigrateRefreshDeltaFormats(rt); err != nil {
+		return err
+	}
 
 	// if the migration is going to run, we should mark it as done in the state
 	reservationWritten := strutil.ListContains(rt.Changes(), "core.disk-reservation.size")
+	deltaFormatsWritten := strutil.ListContains(rt.Changes(), "core.refresh.delta-formats")
 
 	// ensure that graduated features are cleared from the state
 	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
@@ -69,6 +73,9 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 
 	if reservationWritten {
 		st.Set("disk-space-reservation-migrated", true)
+	}
+	if deltaFormatsWritten {
+		st.Set("refresh-delta-formats-migrated", true)
 	}
 
 	var homedirs string

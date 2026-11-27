@@ -59,6 +59,7 @@ func init() {
 	validateOnly := &flags{validatedOnlyStateConfig: true}
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
+	addWithStateHandler(validateRefreshDeltaFormats, nil, validateOnly)
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
 
 	// disk-reservation.size
@@ -66,6 +67,9 @@ func init() {
 
 	// legacy experimental disk space flags
 	addWithStateHandler(nil, handleLegacyDiskSpaceFeatures, nil)
+
+	// legacy experimental snap-delta-format flag
+	addWithStateHandler(nil, handleLegacySnapDeltaFormat, nil)
 
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, coreOnly)

@@ -198,12 +198,18 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 		// migration attempt
 		reservationWritten := context.InstanceName() == naming.Core &&
 			strutil.ListContains(tr.Changes(), "core.disk-reservation.size")
+		// An explicit set or unset must also prevent future delta migration.
+		deltaFormatsWritten := context.InstanceName() == naming.Core &&
+			strutil.ListContains(tr.Changes(), "core.refresh.delta-formats")
 
 		tr.Commit()
 
 		if context.InstanceName() == naming.Core {
 			if reservationWritten {
 				context.State().Set("disk-space-reservation-migrated", true)
+			}
+			if deltaFormatsWritten {
+				context.State().Set("refresh-delta-formats-migrated", true)
 			}
 			// make sure the Ensure logic can process
 			// system configuration changes as soon as possible
