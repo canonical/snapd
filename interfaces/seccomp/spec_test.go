@@ -107,3 +107,26 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 	c.Assert(spec.SnippetForTag("non-existing"), Equals, "")
 }
+
+func (s *specSuite) TestSuppressSuidCreationDeny(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := seccomp.NewSpecification(appSet)
+
+	// not suppressed by default
+	c.Assert(spec.SuppressSuidCreationDeny("snap.snap1.app1"), Equals, false)
+
+	// suppression is recorded for the security tags of the connected plug
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		SecCompConnectedPlugCallback: func(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+			spec.SetSuppressSuidCreationDeny()
+			return nil
+		},
+	}
+	c.Assert(spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SuppressSuidCreationDeny("snap.snap1.app1"), Equals, true)
+
+	// other security tags of the same snap are not affected
+	c.Assert(spec.SuppressSuidCreationDeny("snap.snap1.other"), Equals, false)
+}
