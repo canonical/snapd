@@ -3679,6 +3679,12 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
 		}
+		// Remove the freezer cgroup before clearing any run inhibition so that
+		// inhibited launches cannot resume and recreate the group during cleanup.
+		// Running processes may remain, so cleanup must not prevent snap removal.
+		if err := m.backend.RemoveSnapFreezerCgroup(snapsup.InstanceName(), st.Unlocker()); err != nil {
+			logger.Noticef("cannot remove freezer cgroup for snap %q: %v", snapsup.InstanceName(), err)
+		}
 		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName().String(), st.Unlocker())
 		if err != nil {
 			return err

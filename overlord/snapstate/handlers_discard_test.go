@@ -21,11 +21,13 @@ package snapstate_test
 
 import (
 	"os"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -91,6 +93,11 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))
 	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// The freezer cgroup should not be removed while another revision remains.
+	for _, op := range s.fakeBackend.ops {
+		c.Check(op.op, Not(Equals), "remove-freezer-cgroup")
+	}
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
@@ -167,6 +174,22 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapFreezerCleanupError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "remove-freezer-cgroup" {
+			return syscall.EBUSY
+		}
+		return nil
+	}
+	s.TestDoDiscardSnapToEmpty(c)
+
+	c.Check(logbuf.String(), testutil.Contains, `cannot remove freezer cgroup for snap "foo": device or resource busy`)
+	// Cleanup failures must not stop subsequent instance-level cleanup.
+	s.fakeBackend.ops.MustFindOp(c, "remove-snap-dir")
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {

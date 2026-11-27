@@ -125,6 +125,7 @@ type managerBackend interface {
 	DiscardSnapNamespace(snapName string) error
 	DiscardLockedSnapNamespace(snapName string) error
 	RemoveSnapInhibitLock(snapName string, stateUnlocker runinhibit.Unlocker) error
+	RemoveSnapFreezerCgroup(instanceName naming.InstanceName, stateUnlocker func() (relock func())) error
 	RemoveAllSnapAppArmorProfiles() error
 	RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error
 
