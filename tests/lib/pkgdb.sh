@@ -701,6 +701,9 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-sid*)
             echo "
+                autoconf
+                autoconf-archive
+                automake
                 busybox
                 debhelper
                 autopkgtest
@@ -725,6 +728,9 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         debian-*)
             echo "
+                autoconf
+                autoconf-archive
+                automake
                 autopkgtest
                 bpftool
                 cryptsetup-bin
