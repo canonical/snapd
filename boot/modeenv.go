@@ -115,6 +115,12 @@ type Modeenv struct {
 	// understand, we keep track of this so that if we read a new modeenv with
 	// extra keys and need to rewrite it, we will write those new keys as well
 	extrakeys map[string]string
+
+	// expired is true when it should not be written back to disk.
+	// This is set when the modeenv lock is released, after
+	// the modeenv has been updated and written, but the
+	// values are still in use.
+	expired bool
 }
 
 var modeenvKnownKeys = make(map[string]bool)
@@ -269,6 +275,9 @@ func (m *Modeenv) Copy() (*Modeenv, error) {
 // Write outputs the modeenv to the file where it was read, only valid on
 // modeenv that has been read.
 func (m *Modeenv) Write() error {
+	if m.expired {
+		return fmt.Errorf("internal error: modeenv has been marked as expired")
+	}
 	if m.read {
 		return m.WriteTo(m.originRootdir)
 	}
@@ -277,6 +286,9 @@ func (m *Modeenv) Write() error {
 
 // WriteTo outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
 func (m *Modeenv) WriteTo(rootdir string) error {
+	if m.expired {
+		return fmt.Errorf("internal error: modeenv has been marked as expired")
+	}
 	if snapdenv.Preseeding() {
 		return fmt.Errorf("internal error: modeenv cannot be written during preseeding")
 	}
