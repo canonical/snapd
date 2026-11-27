@@ -8,7 +8,7 @@ elif [ -d /run/mnt/data/system-data ]; then
   conf=core
 fi
 
-if [ ${conf+set} = set ]; then
+if [ "${conf+set}" = set ]; then
   ln -sf "${conf}.conf" /etc/plymouth/plymouthd.conf
   /usr/bin/plymouth reload || true
 fi
