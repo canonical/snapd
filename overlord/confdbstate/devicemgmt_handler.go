@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -109,7 +110,27 @@ type deviceBackend interface {
 	ConfdbControl() (*asserts.ConfdbControl, error)
 }
 
-// confdbMessageHandler implements devicemgmthandlers.MessageHandler for the "confdb" message kind.
+// toHandlerError converts err into the error returned by MessageHandler.Apply,
+// wrapped with its kind if it has one.
+func toHandlerError(err error) error {
+	kind := ErrorKind(err)
+	if kind == "" {
+		return err
+	}
+
+	return &devicemgmthandlers.Error{Kind: kind, Err: err}
+}
+
+// unauthorizedError returns the error reported when the operator has not
+// been delegated the requested view.
+func unauthorizedError(operator string) error {
+	return &devicemgmthandlers.UnauthorizedError{
+		Err: fmt.Errorf("cannot perform action: operator %q is not authorized", operator),
+	}
+}
+
+// confdbMessageHandler implements devicemgmthandlers.MessageHandler for
+// the confdb message kind.
 type confdbMessageHandler struct {
 	device deviceBackend
 }
@@ -135,7 +156,7 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 	cc, err := h.device.ConfdbControl()
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return &devicemgmthandlers.UnauthorizedError{Operator: msg.AccountID}
+			return unauthorizedError(msg.AccountID)
 		}
 
 		return fmt.Errorf("cannot validate message: %v", err)
@@ -144,7 +165,7 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 	// TODO: implement store authentication method. Currently, the store doesn't
 	// support signing request messages on behalf of operators.
 	if msg.AuthorityID != msg.AccountID {
-		return &devicemgmthandlers.UnauthorizedError{Operator: msg.AccountID}
+		return unauthorizedError(msg.AccountID)
 	}
 
 	ctrl := cc.Control()
@@ -154,7 +175,7 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 		return fmt.Errorf("cannot validate message: %v", err)
 	}
 	if !delegated {
-		return &devicemgmthandlers.UnauthorizedError{Operator: msg.AccountID}
+		return unauthorizedError(msg.AccountID)
 	}
 
 	return nil
@@ -174,7 +195,7 @@ func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg d
 
 	view, err := confdbstateGetView(st, action.Account, schemaName, viewName)
 	if err != nil {
-		return "", err
+		return "", toHandlerError(err)
 	}
 
 	var chgID string
@@ -187,7 +208,7 @@ func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg d
 		return "", fmt.Errorf("cannot apply message: unknown action %q", action.Action)
 	}
 	if err != nil {
-		return "", err
+		return "", toHandlerError(err)
 	}
 
 	chg := st.Change(chgID)
@@ -231,7 +252,15 @@ func (h *confdbMessageHandler) ResultFromChange(ctx context.Context, chg *state.
 		return nil, fmt.Errorf("internal error: api-data error field has no message")
 	}
 
-	return nil, fmt.Errorf("%s", msg)
+	kind, _ := errMap["kind"].(string)
+	if kind != "" {
+		return nil, &devicemgmthandlers.Error{
+			Kind: client.ErrorKind(kind),
+			Err:  errors.New(msg),
+		}
+	}
+
+	return nil, errors.New(msg)
 }
 
 func parseView(raw string) (schemaName, viewName string, err error) {

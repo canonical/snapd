@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -108,33 +109,51 @@ type MessageHandler interface {
 	// Validate checks subsystem-specific constraints on a message that has
 	// already passed snapd's own validation.
 	//
-	// An error results in asserts.MessageStatusRejected, or
-	// asserts.MessageStatusUnauthorized if it's an UnauthorizedError.
+	// An error (ideally an *Error with a kind) results in asserts.MessageStatusRejected,
+	// or asserts.MessageStatusUnauthorized if it's an UnauthorizedError.
 	Validate(ctx context.Context, st *state.State, msg RequestMessage) error
 
 	// Apply creates a subsystem change to process the message and returns the
 	// change's ID. It must call MarkChangeForMessage on the change before
 	// returning or releasing the state lock.
 	//
-	// An error results in asserts.MessageStatusError.
+	// An error (ideally an *Error with a kind) results in asserts.MessageStatusError.
 	Apply(ctx context.Context, st *state.State, msg RequestMessage) (changeID string, err error)
 
 	// ResultFromChange reads the change once it's ready and returns the full
 	// result, which becomes the response message body.
 	//
-	// An error results in asserts.MessageStatusError, otherwise the status is
-	// asserts.MessageStatusSuccess.
+	// An error (ideally an *Error with a kind) results in asserts.MessageStatusError,
+	// otherwise the status is asserts.MessageStatusSuccess.
 	ResultFromChange(ctx context.Context, chg *state.Change) (body map[string]any, err error)
+}
+
+// Error is an error that carries a kind for the response message body.
+type Error struct {
+	Kind client.ErrorKind
+	Err  error
+}
+
+func (e *Error) Error() string {
+	return e.Err.Error()
+}
+
+func (e *Error) Unwrap() error {
+	return e.Err
 }
 
 // UnauthorizedError is returned by MessageHandler.Validate when the operator
 // does not have permission to perform the requested action.
 type UnauthorizedError struct {
-	Operator string
+	Err error
 }
 
 func (e *UnauthorizedError) Error() string {
-	return fmt.Sprintf("cannot perform action: operator %q is not authorized", e.Operator)
+	return e.Err.Error()
+}
+
+func (e *UnauthorizedError) Unwrap() error {
+	return e.Err
 }
 
 const changeMarkerKey = "mgmt-message-key"

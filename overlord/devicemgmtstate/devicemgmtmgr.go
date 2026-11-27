@@ -702,13 +702,13 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	setMsgResponse := func(status asserts.MessageStatus, message string) {
+	setMsgResponse := func(status asserts.MessageStatus, body map[string]any) {
 		msg.ResponseStatus = status
-		msg.ResponseBody = map[string]any{"message": message}
+		msg.ResponseBody = body
 		m.setState(ms)
 	}
 	rejectMsg := func(reason string) {
-		setMsgResponse(asserts.MessageStatusRejected, reason)
+		setMsgResponse(asserts.MessageStatusRejected, map[string]any{"message": reason})
 	}
 
 	a, err := asserts.Decode(msg.RawAssertion)
@@ -774,7 +774,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		if errors.As(err, &unauthorizedErr) {
 			status = asserts.MessageStatusUnauthorized
 		}
-		reason := err.Error()
+		body := handlerErrorBody(err)
 
 		// MessageHandler.Validate may drop the state lock internally. Concurrent tasks
 		// in other lanes may have mutated the state in that window, so re-read before mutating.
@@ -783,7 +783,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 			return err
 		}
 
-		setMsgResponse(status, reason)
+		setMsgResponse(status, body)
 		return nil
 	}
 
@@ -860,7 +860,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 
 	if applyErr != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": applyErr.Error()}
+		msg.ResponseBody = handlerErrorBody(applyErr)
 	} else {
 		msg.ApplyChangeID = chgID
 	}
@@ -985,13 +985,26 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(ctx context.Context, ms
 	body, err := handler.ResultFromChange(ctx, chg)
 	if err != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": err.Error()}
+		msg.ResponseBody = handlerErrorBody(err)
 	} else {
 		msg.ResponseStatus = asserts.MessageStatusSuccess
 		msg.ResponseBody = body
 	}
 
 	return nil
+}
+
+// handlerErrorBody builds a response body for an error returned by a
+// MessageHandler, including its kind if it has one.
+func handlerErrorBody(err error) map[string]any {
+	body := map[string]any{"message": err.Error()}
+
+	var handlerErr *handlers.Error
+	if errors.As(err, &handlerErr) && handlerErr.Kind != "" {
+		body["kind"] = string(handlerErr.Kind)
+	}
+
+	return body
 }
 
 // parseRequestMessage decodes a store message body into a RequestMessage.

@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
@@ -1596,7 +1597,12 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnauthorized(c *C) {
 
 	handlers.Register("test-kind", &mockMessageHandler{
 		validate: func(context.Context, *state.State, handlers.RequestMessage) error {
-			return &handlers.UnauthorizedError{Operator: "alice"}
+			return &handlers.Error{
+				Kind: client.ErrorKindOptionNotAvailable,
+				Err: &handlers.UnauthorizedError{
+					Err: fmt.Errorf(`cannot perform action: operator "alice" is not authorized`),
+				},
+			}
 		},
 	})
 
@@ -1609,7 +1615,10 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnauthorized(c *C) {
 
 	msg := ms.Sequences["operator/msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusUnauthorized)
-	c.Check(msg.ResponseBody["message"], Equals, `cannot perform action: operator "alice" is not authorized`)
+	c.Check(msg.ResponseBody, DeepEquals, map[string]any{
+		"kind":    "option-not-available",
+		"message": `cannot perform action: operator "alice" is not authorized`,
+	})
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
@@ -1639,7 +1648,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
 
 	msg := ms.Sequences["operator/msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
-	c.Check(msg.ResponseBody["message"], Equals, "cannot validate message: invalid payload")
+	c.Check(msg.ResponseBody, DeepEquals, map[string]any{"message": "cannot validate message: invalid payload"})
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
@@ -1912,7 +1921,10 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 
 	handlers.Register("test-kind", &mockMessageHandler{
 		apply: func(ctx context.Context, st *state.State, msg handlers.RequestMessage) (string, error) {
-			return "", fmt.Errorf("cannot apply message: system in inconsistent state")
+			return "", &handlers.Error{
+				Kind: client.ErrorKindAssertionNotFound,
+				Err:  fmt.Errorf("cannot apply message: system in inconsistent state"),
+			}
 		},
 	})
 
@@ -1926,7 +1938,10 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 	msg := ms.Sequences["operator/msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Equals, "")
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
-	c.Check(msg.ResponseBody["message"], Equals, "cannot apply message: system in inconsistent state")
+	c.Check(msg.ResponseBody, DeepEquals, map[string]any{
+		"kind":    "assertion-not-found",
+		"message": "cannot apply message: system in inconsistent state",
+	})
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
@@ -2320,7 +2335,10 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 			return chg.ID(), nil
 		},
 		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
-			return nil, fmt.Errorf("cannot get result from change: operation failed")
+			return nil, &handlers.Error{
+				Kind: client.ErrorKindConfigNoSuchOption,
+				Err:  fmt.Errorf("cannot get result from change: operation failed"),
+			}
 		},
 	})
 
@@ -2329,7 +2347,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
 			c.Check(messageID, Equals, "mesg-1")
 			c.Check(status, Equals, asserts.MessageStatusError)
-			c.Check(string(body), Equals, `{"message":"cannot get result from change: operation failed"}`)
+			c.Check(string(body), Equals, `{"kind":"option-not-found","message":"cannot get result from change: operation failed"}`)
 
 			return s.makeResponseMessage(accountID, messageID, status, body)
 		},
