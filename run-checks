@@ -723,17 +723,18 @@ if [ "$UNIT" = 1 ]; then
         echo ">> [Python] Skipping pytest-3 test for release-tools"
     fi
     if [ -n "$SKIP_PYTHON_UNIT_TESTS" ]; then
-        echo ">> [Python] Skipping python3 unit tests for agent skill scripts"
+        echo ">> [Python] Skipping python3 unit tests for agent skill scripts and spread-log"
     elif command -v python3; then
-        echo ">> [Python] Running python3 unit tests for agent skill scripts"
+        echo ">> [Python] Running python3 unit tests for agent skill scripts and spread-log"
         for scripts in .agents/skills/*/scripts; do
             # unittest exits 5 when no tests are found (python >= 3.12)
             if compgen -G "$scripts/test_*.py" >/dev/null; then
                 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s "$scripts" -p 'test_*.py'
             fi
         done
+        PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/utils/spread-log -p 'test_*.py'
     else
-        echo ">> [Python] Skipping python3 unit tests for agent skill scripts"
+        echo ">> [Python] Skipping python3 unit tests for agent skill scripts and spread-log"
     fi
 fi
 

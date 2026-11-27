@@ -97,21 +97,27 @@ execute: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
+    # reboots until no restart is pending, then checks the change is done
     wait_change_done() {
-        chg_summary="$1"
-        for _ in $(seq 10); do
-            if snap changes | MATCH "[0-9]+\\ +Done\\ +.* $chg_summary"; then
-                break
+        local chg_summary="$1"
+        for _ in $(seq 60); do
+            if timeout 10 snap changes 2>/dev/null | MATCH "[0-9]+\\ +Done\\ +.* $chg_summary"; then
+                return 0
             fi
-            # some debug output
-            snap changes
-            # wait a bit
+            # -b: only a restart requested in this boot counts; earlier boots
+            #     already had their reboot serviced
+            if "$TESTSTOOLS"/journal-state match-log -b -n 1 "Waiting for system reboot"; then
+                REBOOT
+            fi
             sleep 5
         done
         snap changes | MATCH "[0-9]+\\ +Done\\ +.* $chg_summary"
     }
-    # initial boot with the current model 
-    if [ "$SPREAD_REBOOT" = 0 ]; then
+
+    # steps are marker-file gated, not $SPREAD_REBOOT, since each can need a
+    # variable number of reboots
+
+    if [ ! -e remodel1-submitted ]; then
         # precondition check
         snap list "$OLD_BASE"
 
@@ -122,32 +128,38 @@ execute: |
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
         echo "Double check that we boot into the right base"
         MATCH "snap_try_core=$NEW_BASE" < /boot/grub/grubenv
+        touch remodel1-submitted
         echo "reboot to finish the change"
         REBOOT
     fi
 
-    # first boot with the new model base
-    if [ "$SPREAD_REBOOT" = 1 ]; then
+    if [ ! -e remodel1-done ]; then
+        # absorb any pending gadget reboot first: snapd closes its API socket
+        # while waiting for one, so call it before the snap commands below
+        wait_change_done "Refresh model assertion from revision 0 to 2"
         echo "and we have the new base snap installed"
         snap list "$NEW_BASE"
         echo "And are using it"
         "$TESTSTOOLS"/boot-state wait-core-post-boot
         MATCH "snap_core=$NEW_BASE" < /boot/grub/grubenv
         echo "and we got the new model assertion"
-        wait_change_done "Refresh model assertion from revision 0 to 2"
         snap debug model|MATCH "revision: 2"
         echo "and we cannot remove the base snap"
         not snap remove --purge "$NEW_BASE"
+        touch remodel1-done
+    fi
+
+    if [ ! -e remodel2-submitted ]; then
         # TODO: test when keeping the old base, test removing the old base
         #       (not possible here as the pc gadget uses core18 as its base)
         echo "And we can remodel again and remove the new base"
         MODEL="$(get_test_model valid-for-testing-pc-revno-3)"
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
+        touch remodel2-submitted
         REBOOT
     fi
 
-    # reboot from new model to undo the new model again (to not pollute tests)
-    if [ "$SPREAD_REBOOT" = 2 ]; then
+    if [ ! -e remodel2-done ]; then
         "$TESTSTOOLS"/boot-state wait-core-post-boot
         MATCH "snap_core=$OLD_BASE" < /boot/grub/grubenv
         wait_change_done "Refresh model assertion from revision 2 to 3"
@@ -156,5 +168,6 @@ execute: |
         snap remove --purge "$NEW_GADGET"
         snap remove --purge "$NEW_BASE"
         snap refresh --channel="$BASE_CHANNEL" "$OLD_BASE"
+        touch remodel2-done
         REBOOT
     fi

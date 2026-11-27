@@ -219,3 +219,7 @@ func MockBootReadModeenv(f func(rootdir string) (*boot.Modeenv, error)) (restore
 func MockBootGetRunBootChain(f func(*boot.Modeenv) ([]bootloader.BootFile, error)) (restore func()) {
 	return testutil.Mock(&bootGetRunBootChain, f)
 }
+
+func MockFdestateSystemEncryptedFromState(f func(st *state.State) (bool, error)) (restore func()) {
+	return testutil.Mock(&fdestateSystemEncryptedFromState, f)
+}
