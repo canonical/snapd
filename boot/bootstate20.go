@@ -511,9 +511,9 @@ type bootState20Base struct{}
 // revisions returns the current boot snap and optional try boot snap for the
 // type specified in bsgeneric.
 func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
-	modeenv, err := loadModeenv()
+	modeenv, err := ReadModeenv("")
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("cannot get snap revision: %v", err)
+		return nil, nil, "", fmt.Errorf("cannot get snap revision: cannot read modeenv: %v", err)
 	}
 	return bs20.revisionsFromModeenv(modeenv)
 }
