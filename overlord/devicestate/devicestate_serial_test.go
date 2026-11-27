@@ -245,7 +245,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(osutil.IsDirectory(filepath.Join(dirs.SnapDeviceDir, "private-keys-v1")), Equals, true)
 
 	// cannot unregister
-	c.Check(s.mgr.Unregister(nil), ErrorMatches, `cannot currently unregister device if not classic or model brand is not generic or canonical`)
+	_, err = devicestate.Unregister(s.state, nil)
+	c.Check(err, ErrorMatches, `cannot unregister device unless device.allow-unregister is set to true`)
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
@@ -2645,11 +2646,27 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	device.SessionMacaroon = "session-macaroon"
 	devicestatetest.SetDevice(s.state, device)
 
-	err = s.mgr.Unregister(opts)
+	// settle registers the device again, so capture it once it is unregistered
+	var forgotten *auth.DeviceState
+	s.state.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+		if t.Kind() == "forget-serial-and-key" && new == state.DoneStatus {
+			forgotten, _ = devicestatetest.Device(s.state)
+			return true
+		}
+
+		return false
+	})
+
+	chg, err := devicestate.Unregister(s.state, opts)
 	c.Assert(err, IsNil)
 
-	device, err = devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	c.Assert(chg.Err(), IsNil)
+
+	device = forgotten
+	c.Assert(device, NotNil)
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
 	// unregistered
@@ -2664,19 +2681,13 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 
 	noRegistrationUntilReboot := opts != nil && opts.NoRegistrationUntilReboot
 	noregister := filepath.Join(dirs.SnapRunDir, "noregister")
+	becomeOperational = s.findBecomeOperationalChange(becomeOperational1)
 	if noRegistrationUntilReboot {
 		c.Check(noregister, testutil.FilePresent)
-		c.Assert(os.Remove(noregister), IsNil)
-	} else {
-		c.Check(noregister, testutil.FileAbsent)
+		c.Check(becomeOperational, IsNil)
+		return
 	}
-
-	// runs the whole device registration process again
-	s.state.Unlock()
-	s.settle(c)
-	s.state.Lock()
-
-	becomeOperational = s.findBecomeOperationalChange(becomeOperational1)
+	c.Check(noregister, testutil.FileAbsent)
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
@@ -3055,4 +3066,355 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessNoKeyID(c *C) {
 	// then the "generate-device-key" task should be queued
 	c.Assert(tasks, HasLen, 1)
 	c.Check(tasks[0].Kind(), Equals, "generate-device-key")
+}
+
+func (s *deviceMgrSerialSuite) TestUnregisterOK(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "model",
+		Serial: "1234",
+	}), IsNil)
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "device.allow-unregister", "true"), IsNil)
+	tr.Commit()
+
+	chg, err := devicestate.Unregister(s.state, nil)
+	c.Assert(err, IsNil)
+	c.Check(chg.Kind(), Equals, "unregister-device")
+
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	c.Check(tasks[0].Kind(), Equals, "forget-serial-and-key")
+	c.Check(tasks[1].Kind(), Equals, "delete-device-key")
+	c.Check(tasks[1].WaitTasks(), DeepEquals, []*state.Task{tasks[0]})
+}
+
+func (s *deviceMgrSerialSuite) TestUnregisterAllowed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tests := []struct {
+		classic         bool
+		brand           string
+		allowUnregister any
+		succeeds        bool
+	}{
+		{classic: true, brand: "generic", succeeds: true},
+		{classic: true, brand: "canonical", succeeds: true},
+		{classic: true, brand: "my-brand", succeeds: false},
+		{classic: true, brand: "my-brand", allowUnregister: true, succeeds: true},
+		{classic: true, brand: "my-brand", allowUnregister: "true", succeeds: true},
+		{classic: true, brand: "my-brand", allowUnregister: false, succeeds: false},
+		{classic: true, brand: "my-brand", allowUnregister: "false", succeeds: false},
+		{classic: false, brand: "generic", succeeds: false},
+		{classic: false, brand: "canonical", succeeds: false},
+		{classic: false, brand: "generic", allowUnregister: true, succeeds: true},
+		{classic: false, brand: "my-brand", allowUnregister: "true", succeeds: true},
+		{classic: false, brand: "my-brand", allowUnregister: false, succeeds: false},
+	}
+
+	for i, tc := range tests {
+		comment := Commentf("%d: %+v", i, tc)
+
+		restore := release.MockOnClassic(tc.classic)
+		tr := config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "device.allow-unregister", tc.allowUnregister), IsNil, comment)
+		tr.Commit()
+		c.Assert(devicestatetest.SetDevice(s.state, &auth.DeviceState{
+			Brand:  tc.brand,
+			Model:  "model",
+			Serial: "1234",
+		}), IsNil, comment)
+
+		chg, err := devicestate.Unregister(s.state, nil)
+		if tc.succeeds {
+			c.Assert(err, IsNil, comment)
+			chg.Abort()
+		} else {
+			c.Check(err, ErrorMatches, `cannot unregister device unless device.allow-unregister is set to true`, comment)
+			c.Check(err, testutil.ErrorIs, devicestate.ErrUnregisterNotAllowed, comment)
+			c.Check(chg, IsNil, comment)
+		}
+		restore()
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestUnregisterConflicts(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "generic",
+		Model:  "generic-classic",
+		Serial: "1234",
+	}), IsNil)
+
+	for _, kind := range []string{"become-operational", "unregister-device", "remodel"} {
+		other := s.state.NewChange(kind, "...")
+		task := s.state.NewTask("some-task", "...")
+		other.AddTask(task)
+
+		chg, err := devicestate.Unregister(s.state, nil)
+		c.Assert(err, testutil.ErrorIs, &snapstate.ChangeConflictError{}, Commentf("%s", kind))
+		c.Check(chg, IsNil)
+
+		// a finished change does not conflict
+		task.SetStatus(state.DoneStatus)
+		chg, err = devicestate.Unregister(s.state, nil)
+		c.Assert(err, IsNil, Commentf("%s", kind))
+		chg.Abort()
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestUnregisterAbortedBetweenTasksRestoresIdentity(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.setPCModelInState(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.addKeyToManagerInState(c)
+	keyID := devKey.PublicKey().ID()
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	serial := device.Serial
+	device.SessionMacaroon = "session-macaroon"
+	c.Assert(devicestatetest.SetDevice(s.state, device), IsNil)
+
+	// abort once serial & key are forgotten, capturing the device at that point
+	var forgotten *auth.DeviceState
+	s.state.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+		if t.Kind() == "forget-serial-and-key" && new == state.DoneStatus {
+			forgotten, _ = devicestatetest.Device(s.state)
+			t.Change().Abort()
+			s.state.EnsureBefore(0)
+			return true
+		}
+
+		return false
+	})
+
+	chg, err := devicestate.Unregister(s.state, nil)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	device = forgotten
+	c.Assert(device, NotNil)
+	c.Check(device.Serial, Equals, "")
+	c.Check(device.KeyID, Equals, "")
+	c.Check(device.SessionMacaroon, Equals, "")
+
+	tasks := chg.Tasks()
+
+	var prev auth.DeviceState
+	c.Assert(tasks[0].Get("previous-device", &prev), IsNil)
+	c.Check(prev.Serial, Equals, serial)
+	c.Check(prev.KeyID, Equals, keyID)
+	c.Check(prev.SessionMacaroon, Equals, "")
+
+	c.Check(tasks[0].Status(), Equals, state.UndoneStatus)
+	c.Check(tasks[1].Status(), Equals, state.HoldStatus)
+
+	device, err = devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, serial)
+	c.Check(device.KeyID, Equals, keyID)
+
+	_, err = devicestate.KeypairManager(s.mgr).Get(keyID)
+	c.Check(err, IsNil)
+}
+
+func (s *deviceMgrSerialSuite) TestUnregisterAbortedWhileDeletingKey(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.setPCModelInState(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.addKeyToManagerInState(c)
+	keyID := devKey.PublicKey().ID()
+
+	s.state.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+		if t.Kind() == "delete-device-key" && new == state.DoingStatus {
+			t.Change().Abort()
+			return true
+		}
+
+		return false
+	})
+
+	// keeps ensure from registering the device again once it is unregistered
+	opts := &devicestate.UnregisterOptions{NoRegistrationUntilReboot: true}
+	chg, err := devicestate.Unregister(s.state, opts)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Tasks()[0].Status(), Equals, state.UndoneStatus)
+
+	_, err = devicestate.KeypairManager(s.mgr).Get(keyID)
+	c.Check(err, ErrorMatches, "cannot find key pair")
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, "")
+	c.Check(device.KeyID, Equals, "")
+}
+
+func (s *deviceMgrSerialSuite) TestUnregisterDeleteKeyFailureRestoresIdentity(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("cannot make the key directory read-only for root")
+	}
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.setPCModelInState(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.addKeyToManagerInState(c)
+	keyID := devKey.PublicKey().ID()
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	serial := device.Serial
+
+	keysDir := filepath.Join(dirs.SnapDeviceDir, "private-keys-v1")
+	c.Assert(os.Chmod(keysDir, 0500), IsNil)
+	defer os.Chmod(keysDir, 0700)
+
+	chg, err := devicestate.Unregister(s.state, nil)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot delete device key pair:.*`)
+	tasks := chg.Tasks()
+	c.Check(tasks[0].Status(), Equals, state.UndoneStatus)
+	c.Check(tasks[1].Status(), Equals, state.ErrorStatus)
+
+	device, err = devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, serial)
+	c.Check(device.KeyID, Equals, keyID)
+
+	_, err = devicestate.KeypairManager(s.mgr).Get(keyID)
+	c.Check(err, IsNil)
+}
+
+func (s *deviceMgrSerialSuite) TestDoForgetSerialAndKeyIdempotent(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.setPCModelInState(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.addKeyToManagerInState(c)
+	keyID := devKey.PublicKey().ID()
+
+	chg := s.state.NewChange("unregister-device", "...")
+	first := s.state.NewTask("forget-serial-and-key", "1st")
+	first.Set("no-registration-until-reboot", true)
+	second := s.state.NewTask("forget-serial-and-key", "2nd")
+	second.WaitFor(first)
+	third := s.state.NewTask("forget-serial-and-key", "3rd")
+	third.WaitFor(second)
+	chg.AddAll(state.NewTaskSet(first, second, third))
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	var oldKeyID string
+	c.Assert(chg.Get("old-key-id", &oldKeyID), IsNil)
+	c.Check(oldKeyID, Equals, keyID)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, "")
+	c.Check(device.KeyID, Equals, "")
+}
+
+func (s *deviceMgrSerialSuite) TestDoDeleteDeviceKeyIdempotent(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.setPCModelInState(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	s.addKeyToManagerInState(c)
+	keyID := devKey.PublicKey().ID()
+
+	chg := s.state.NewChange("unregister-device", "...")
+	chg.Set("old-key-id", keyID)
+	first := s.state.NewTask("delete-device-key", "...")
+	second := s.state.NewTask("delete-device-key", "...")
+	second.WaitFor(first)
+	third := s.state.NewTask("delete-device-key", "...")
+	third.WaitFor(second)
+	chg.AddAll(state.NewTaskSet(first, second, third))
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	_, err := devicestate.KeypairManager(s.mgr).Get(keyID)
+	c.Check(err, ErrorMatches, "cannot find key pair")
+}
+
+func (s *deviceMgrSerialSuite) TestDeleteDeviceKeyMissingOldKeyID(c *C) {
+	s.setPCModelInState(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	chg := s.state.NewChange("unregister-device", "...")
+	chg.AddTask(s.state.NewTask("delete-device-key", "..."))
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*internal error: cannot find the device key to delete:.*`)
 }

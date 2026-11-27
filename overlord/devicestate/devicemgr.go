@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2024 Canonical Ltd
+ * Copyright (C) 2016-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -309,6 +309,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(removeRecoverySystemBlocked)
 
 	runner.AddHandler("fde-reprovision", m.doReprovision, nil)
+
+	runner.AddHandler("forget-serial-and-key", m.doForgetSerialAndKey, m.undoForgetSerialAndKey)
+	runner.AddHandler("delete-device-key", m.doDeleteDeviceKey, nil)
 
 	// wire FDE kernel hook support into boot
 	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory
@@ -737,7 +740,9 @@ func (m *DeviceManager) ensureOperationalAfterSeed(deviceCtx snapstate.DeviceCon
 	}
 	// noregister marker file is checked below after mostly in-memory checks
 
-	if m.changeInFlight("become-operational") {
+	// an unregister in flight must finish first, or the old identity could
+	// be restored from a key that is about to be deleted
+	if m.changeInFlight("become-operational") || m.changeInFlight(unregisterDeviceChangeKind) {
 		return nil
 	}
 
@@ -2378,56 +2383,6 @@ func (m *DeviceManager) SignResponseMessage(accountID, messageID string, status 
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
-}
-
-type UnregisterOptions struct {
-	NoRegistrationUntilReboot bool
-}
-
-// Unregister unregisters the device forgetting its serial
-// plus the additional behavior described by the UnregisterOptions
-func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
-	device, err := m.device()
-	if err != nil {
-		return err
-	}
-	if !release.OnClassic || (device.Brand != "generic" && device.Brand != "canonical") {
-		return fmt.Errorf("cannot currently unregister device if not classic or model brand is not generic or canonical")
-	}
-
-	if opts == nil {
-		opts = &UnregisterOptions{}
-	}
-	if opts.NoRegistrationUntilReboot {
-		if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
-			return err
-		}
-	}
-	oldKeyID := device.KeyID
-	device.Serial = ""
-	device.KeyID = ""
-	device.SessionMacaroon = ""
-	if err := m.setDevice(device); err != nil {
-		return err
-	}
-	// commit forgetting serial and key
-	m.state.Unlock()
-	m.state.Lock()
-	// delete the device key
-	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
-		err := keypairMgr.Delete(oldKeyID)
-		if err != nil {
-			return fmt.Errorf("cannot delete device key pair: %v", err)
-		}
-		return nil
-	})
-
-	m.lastBecomeOperationalAttempt = time.Time{}
-	m.becomeOperationalBackoff = 0
-	return err
 }
 
 // device returns current device state.

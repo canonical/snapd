@@ -28,6 +28,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -1023,4 +1025,113 @@ func (m *DeviceManager) runPrepareSerialRequestHook(st *state.State, hooksup *ho
 	}
 
 	return nil
+}
+
+func (m *DeviceManager) doForgetSerialAndKey(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if t.Change().Has("old-key-id") {
+		// already forgotten
+		return nil
+	}
+
+	var noRegistrationUntilReboot bool
+	err := t.Get("no-registration-until-reboot", &noRegistrationUntilReboot)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+
+	if noRegistrationUntilReboot {
+		err := os.MkdirAll(dirs.SnapRunDir, 0755)
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	prev := *device
+	prev.SessionMacaroon = ""
+	t.Set("previous-device", prev)
+	t.Change().Set("old-key-id", prev.KeyID)
+
+	device.Serial = ""
+	device.KeyID = ""
+	device.SessionMacaroon = ""
+	err = m.setDevice(device)
+	if err != nil {
+		return err
+	}
+	m.lastBecomeOperationalAttempt = time.Time{}
+	m.becomeOperationalBackoff = 0
+
+	return nil
+}
+
+func (m *DeviceManager) undoForgetSerialAndKey(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var prev auth.DeviceState
+	err := t.Get("previous-device", &prev)
+	if err != nil {
+		return err
+	}
+
+	if prev.KeyID != "" {
+		err := m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+			_, err := keypairMgr.Get(prev.KeyID)
+			return err
+		})
+		if asserts.IsKeyNotFound(err) {
+			// an abort while delete-device-key was running may have deleted it
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+	device.Serial = prev.Serial
+	device.KeyID = prev.KeyID
+	return m.setDevice(device)
+}
+
+func (m *DeviceManager) doDeleteDeviceKey(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldKeyID string
+	err := t.Change().Get("old-key-id", &oldKeyID)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find the device key to delete: %v", err)
+	}
+	if oldKeyID == "" {
+		return nil
+	}
+
+	return m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+		err := keypairMgr.Delete(oldKeyID)
+		if err != nil && !asserts.IsKeyNotFound(err) {
+			return fmt.Errorf("cannot delete device key pair: %v", err)
+		}
+
+		return nil
+	})
 }

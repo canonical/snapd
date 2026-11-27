@@ -43,12 +43,16 @@ execute: |
     keyfile=(/var/lib/snapd/device/private-keys-v1/*)
     test -f "${keyfile[0]}"
 
-    echo "{\"action\":\"forget\",\"no-registration-until-reboot\":${UNTIL_REBOOT}}" | snap debug api -X POST -H 'Content-Type: application/json' /v2/model/serial
+    echo "{\"action\":\"forget\",\"no-registration-until-reboot\":${UNTIL_REBOOT}}" | snap debug api -X POST -H 'Content-Type: application/json' /v2/model/serial > response.txt
+    change_id="$(gojq -r .change < response.txt)"
+    snap watch "$change_id"
+    snap change "$change_id" | MATCH "Done.*Forget device serial and key"
+    snap change "$change_id" | MATCH "Done.*Delete device key pair"
 
-    snap model --serial 2>&1|MATCH "error: device not registered yet"
     not test -e "${keyfile[0]}"
 
     if [ "${UNTIL_REBOOT}" = "true" ] ; then
+       snap model --serial 2>&1|MATCH "error: device not registered yet"
        test -f /run/snapd/noregister
        systemctl restart snapd.service
        snap model --serial 2>&1|MATCH "error: device not registered yet"

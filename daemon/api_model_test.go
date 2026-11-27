@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2019-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -493,46 +493,125 @@ func (s *userSuite) TestPostSerialBadAction(c *check.C) {
 }
 
 func (s *userSuite) TestPostSerialForget(c *check.C) {
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
 	unregister := 0
-	defer daemon.MockDevicestateDeviceManagerUnregister(func(mgr *devicestate.DeviceManager, opts *devicestate.UnregisterOptions) error {
+	defer daemon.MockDevicestateUnregister(func(st *state.State, opts *devicestate.UnregisterOptions) (*state.Change, error) {
 		unregister++
-		c.Check(mgr, check.NotNil)
 		c.Check(opts.NoRegistrationUntilReboot, check.Equals, false)
-		return nil
+		return st.NewChange("unregister-device", "..."), nil
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"forget"}`)
 	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil, actionIsExpected)
-	c.Check(rsp.Result, check.IsNil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 202)
 
 	c.Check(unregister, check.Equals, 1)
+	c.Check(soon, check.Equals, 1)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Kind(), check.Equals, "unregister-device")
 }
 
 func (s *userSuite) TestPostSerialForgetNoRegistrationUntilReboot(c *check.C) {
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
 	unregister := 0
-	defer daemon.MockDevicestateDeviceManagerUnregister(func(mgr *devicestate.DeviceManager, opts *devicestate.UnregisterOptions) error {
+	defer daemon.MockDevicestateUnregister(func(st *state.State, opts *devicestate.UnregisterOptions) (*state.Change, error) {
 		unregister++
-		c.Check(mgr, check.NotNil)
 		c.Check(opts.NoRegistrationUntilReboot, check.Equals, true)
-		return nil
+		return st.NewChange("unregister-device", "..."), nil
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"forget", "no-registration-until-reboot": true}`)
 	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.syncReq(c, req, nil, actionIsExpected)
-	c.Check(rsp.Result, check.IsNil)
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 202)
 
 	c.Check(unregister, check.Equals, 1)
+	c.Check(soon, check.Equals, 1)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Kind(), check.Equals, "unregister-device")
+}
+
+func (s *userSuite) TestPostSerialForgetNotAllowed(c *check.C) {
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
+	defer daemon.MockDevicestateUnregister(func(st *state.State, opts *devicestate.UnregisterOptions) (*state.Change, error) {
+		return nil, devicestate.ErrUnregisterNotAllowed
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"forget"}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`cannot unregister device unless device.allow-unregister is set to true`))
+	c.Check(soon, check.Equals, 0)
+}
+
+func (s *userSuite) TestPostSerialForgetConflict(c *check.C) {
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
+	defer daemon.MockDevicestateUnregister(func(st *state.State, opts *devicestate.UnregisterOptions) (*state.Change, error) {
+		return nil, &snapstate.ChangeConflictError{
+			Message:    `cannot unregister device, "become-operational" change in progress`,
+			ChangeKind: "become-operational",
+			ChangeID:   "42",
+		}
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"forget"}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: `cannot unregister device, "become-operational" change in progress`,
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value: map[string]any{
+			"change-kind": "become-operational",
+		},
+	})
+	c.Check(soon, check.Equals, 0)
 }
 
 func (s *userSuite) TestPostSerialForgetError(c *check.C) {
-	defer daemon.MockDevicestateDeviceManagerUnregister(func(mgr *devicestate.DeviceManager, opts *devicestate.UnregisterOptions) error {
-		return errors.New("boom")
+	defer daemon.MockDevicestateUnregister(func(st *state.State, opts *devicestate.UnregisterOptions) (*state.Change, error) {
+		return nil, errors.New("boom")
 	})()
 
 	buf := bytes.NewBufferString(`{"action":"forget"}`)

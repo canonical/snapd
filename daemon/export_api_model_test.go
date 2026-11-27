@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,11 +33,11 @@ func MockDevicestateRemodel(mock func(*state.State, *asserts.Model, devicestate.
 	}
 }
 
-func MockDevicestateDeviceManagerUnregister(mock func(*devicestate.DeviceManager, *devicestate.UnregisterOptions) error) (restore func()) {
-	oldDevicestateDeviceManagerUnregister := devicestateDeviceManagerUnregister
-	devicestateDeviceManagerUnregister = mock
+func MockDevicestateUnregister(mock func(*state.State, *devicestate.UnregisterOptions) (*state.Change, error)) (restore func()) {
+	oldDevicestateUnregister := devicestateUnregister
+	devicestateUnregister = mock
 	return func() {
-		devicestateDeviceManagerUnregister = oldDevicestateDeviceManagerUnregister
+		devicestateUnregister = oldDevicestateUnregister
 	}
 }
 
