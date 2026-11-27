@@ -1771,6 +1771,21 @@ func (s *systemd) showUnitProperties(propertyOption string, unitArgs []string) (
 	return out, nil
 }
 
+// isMountUnitDescriptionFor returns true if the given mount unit description
+// was generated for the snap or component container with the given name. The
+// description is either "Mount unit for <name>" or "Mount unit for <name>,"
+// followed by further details. Container names never contain a comma, so
+// requiring it after the name prevents matching units of other containers
+// whose names start with the given one, e.g. "foobar" or "foo_x" for "foo".
+func isMountUnitDescriptionFor(description, containerName string) bool {
+	prefix := "Mount unit for " + containerName
+	if !strings.HasPrefix(description, prefix) {
+		return false
+	}
+	rest := description[len(prefix):]
+	return rest == "" || strings.HasPrefix(rest, ",")
+}
+
 // parseMountUnitsOutput parses the concatenated "systemctl show" output and
 // returns the mount points of units belonging to snapName and (optionally)
 // created by the given origin module. The output must include the
@@ -1802,8 +1817,7 @@ func parseMountUnitsOutput(out []byte, snapName, origin string) ([]string, error
 			}
 		}
 
-		ourDescription := fmt.Sprintf("Mount unit for %s", snapName)
-		if !strings.HasPrefix(description, ourDescription) {
+		if !isMountUnitDescriptionFor(description, snapName) {
 			continue
 		}
 
