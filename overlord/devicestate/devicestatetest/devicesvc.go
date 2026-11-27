@@ -41,6 +41,9 @@ type DeviceServiceBehavior struct {
 	RequestIDURLPath     string
 	SerialURLPath        string
 	ExpectedCapabilities string
+	// SerialPolls is the number of initial serial requests that are
+	// answered with 202 Accepted, forcing the client to poll
+	SerialPolls int
 
 	Head          func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 	PostPreflight func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
@@ -177,7 +180,7 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) (mockServer *httptest.S
 }`))
 				return
 			}
-			if reqID == ReqIDPoll && serialNum != 10002 {
+			if (reqID == ReqIDPoll && serialNum != 10002) || serialNum-9999 < bhv.SerialPolls {
 				w.WriteHeader(202)
 				return
 			}
