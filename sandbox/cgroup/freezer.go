@@ -135,19 +135,15 @@ var thawSnapProcessesImplV1 = func(snapName string) error {
 	return nil
 }
 
-func applyToSnap(snapName string, action func(groupName string) error, skipError func(err error) bool) error {
-	if action == nil {
-		return fmt.Errorf("internal error: action is nil")
-	}
-	if skipError == nil {
-		return fmt.Errorf("internal error: skip error is nil")
-	}
+// walkSnapGroups calls found for each cgroup of the given snap.
+func walkSnapGroups(snapName string, found func(groupName string) error, skipError func(err error) bool) error {
 	canary := fmt.Sprintf("snap.%s.", snapName)
 	cgroupRoot := filepath.Join(dirs.GlobalRootDir, cgroupMountPoint)
 	if _, dir, _ := osutil.DirExists(cgroupRoot); !dir {
 		return nil
 	}
-	return filepath.Walk(filepath.Join(dirs.GlobalRootDir, cgroupMountPoint), func(name string, info os.FileInfo, err error) error {
+	// WalkDir avoids an lstat() of every cgroup control file
+	return filepath.WalkDir(cgroupRoot, func(name string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if skipError(err) {
 				// we don't know whether it's a file or
@@ -156,23 +152,46 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 			}
 			return err
 		}
-		if !info.IsDir() {
+		if !d.IsDir() {
 			return nil
 		}
-		if !strings.HasPrefix(info.Name(), canary) {
+		if !strings.HasPrefix(d.Name(), canary) {
 			return nil
 		}
 		// snap applications end up inside a cgroup related to a
 		// service, or when ran standalone, a scope
-		if ext := filepath.Ext(info.Name()); ext != ".scope" && ext != ".service" {
+		if ext := filepath.Ext(d.Name()); ext != ".scope" && ext != ".service" {
 			return nil
 		}
 		// found a group
-		if err := action(name); err != nil && !skipError(err) {
+		if err := found(name); err != nil && !skipError(err) {
 			return err
 		}
 		return filepath.SkipDir
 	})
+}
+
+func applyToSnap(snapName string, action func(groupName string) error, skipError func(err error) bool) error {
+	if action == nil {
+		return fmt.Errorf("internal error: action is nil")
+	}
+	if skipError == nil {
+		return fmt.Errorf("internal error: skip error is nil")
+	}
+	return walkSnapGroups(snapName, action, skipError)
+}
+
+// findSnapGroups returns all cgroups of the given snap.
+func findSnapGroups(snapName string, skipError func(err error) bool) ([]string, error) {
+	var groups []string
+	collect := func(name string) error {
+		groups = append(groups, name)
+		return nil
+	}
+	if err := walkSnapGroups(snapName, collect, skipError); err != nil {
+		return nil, err
+	}
+	return groups, nil
 }
 
 // writeExistingFile can be used as a drop-in replacement for os.WriteFile,
@@ -257,8 +276,21 @@ func freezeSnapProcessesImplV2(ctx context.Context, snapName string) error {
 		}
 		return freezeOneV2(ctx, dir)
 	}
+	// Find all groups before freezing any of them. Walking the whole cgroup
+	// hierarchy can take tens of milliseconds, which would otherwise keep
+	// groups that were frozen early in the walk frozen for that long.
+	groups, err := findSnapGroups(snapName, skipErrNotExist)
+	if err != nil {
+		// nothing was frozen yet
+		return fmt.Errorf("cannot finish freezing processes of snap %q: %w", snapName, err)
+	}
 	// freeze, skipping ENOENT errors
-	err = applyToSnap(snapName, freezeOne, skipErrNotExist)
+	for _, dir := range groups {
+		if err = freezeOne(dir); err != nil && !skipErrNotExist(err) {
+			break
+		}
+		err = nil
+	}
 	if err == nil {
 		return nil
 	}

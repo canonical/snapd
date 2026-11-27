@@ -355,9 +355,9 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 
 	// freeze tries thawing on errors, so we'll observe both errors
 	err := cgroup.FreezeSnapProcesses(context.TODO(), "foo")
-	// go 1.10+ slightly changed the order of calls in filepath.Walk(), make
-	// sure the error check matches both
-	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo":( cannot freeze processes of snap "foo",)? open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope(/cgroup.freeze)?: permission denied`)
+	// the group directory itself is not read while walking, accessing the
+	// freeze file fails
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes in group "snap.foo.app.1234-1234-1234.scope": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
 	// other group was unfrozen
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
@@ -418,6 +418,38 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrNotFound(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(g1, testutil.FileAbsent)
 	c.Check(g2, testutil.FileAbsent)
+}
+
+func (s *freezerV2Suite) TestFreezeSnapProcessesV2WalksBeforeFreezing(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	pid := os.Getpid()
+	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
+	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
+	c.Assert(os.WriteFile(procPidCgroup, []byte("0::/system.slice/snapd.service"), 0755), IsNil)
+
+	g := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/cgroup.freeze")
+	c.Assert(os.MkdirAll(filepath.Dir(g), 0755), IsNil)
+	c.Assert(os.WriteFile(g, []byte("untouched"), 0644), IsNil)
+	// walked after the snap group was found
+	broken := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice")
+	c.Assert(os.MkdirAll(broken, 0000), IsNil)
+	defer os.Chmod(broken, 0755)
+
+	err := cgroup.FreezeSnapProcesses(context.TODO(), "foo")
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": open .*/sys/fs/cgroup/user.slice: permission denied`)
+	// the group was neither frozen nor thawed, as the hierarchy is walked
+	// completely before any group is frozen
+	c.Check(g, testutil.FileEquals, "untouched")
+
+	c.Assert(os.Chmod(broken, 0755), IsNil)
+	c.Assert(cgroup.FreezeSnapProcesses(context.TODO(), "foo"), IsNil)
+	c.Check(g, testutil.FileEquals, "1")
 }
 
 func (s *freezerV2Suite) TestApplyToSnapCallbacks(c *C) {
