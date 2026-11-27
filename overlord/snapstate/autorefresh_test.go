@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -1152,12 +1153,12 @@ func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revis
 	c.Assert(refreshInfo.InstanceName, Equals, name)
 }
 
-func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
+func (s *autoRefreshTestSuite) addRefreshableSnap(names ...naming.InstanceName) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	for _, name := range names {
-		si := &snap.SideInfo{RealName: name, SnapID: fmt.Sprintf("%s-id", name), Revision: snap.R(1)}
+		si := &snap.SideInfo{RealName: name.SnapName().String(), SnapID: fmt.Sprintf("%s-id", name), Revision: snap.R(1)}
 		snapstate.Set(s.state, name, &snapstate.SnapState{
 			Active:   true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
@@ -1169,7 +1170,7 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 			SnapType:      snap.TypeApp,
 			Architectures: []string{"all"},
 			SideInfo: snap.SideInfo{
-				RealName: name,
+				RealName: name.SnapName().String(),
 				Revision: snap.R(8),
 			}})
 	}

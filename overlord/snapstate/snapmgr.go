@@ -44,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
@@ -191,10 +190,9 @@ type SnapSetup struct {
 	// components, and not the snap itself.
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 
-	// IntegrityDataInfo contains the integrity data to be used when mounting this snap.
-	//
-	// FIXME: This should be an array to support multiple integrity data entries.
-	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
+	// IntegrityDataDownloadInfos lists the integrity data variants available for
+	// download for this snap.
+	IntegrityDataDownloadInfos []snap.IntegrityDataDownloadInfo `json:"integrity-data-download-infos,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() naming.InstanceName {
@@ -1060,7 +1058,7 @@ func affectsRunningHooks(cand *state.Task, running []*state.Task) (block bool) {
 		}
 
 		type hookSetup struct {
-			Snap string `json:"snap"`
+			Snap naming.InstanceName `json:"snap"`
 		}
 
 		var hooksup hookSetup
@@ -1070,7 +1068,7 @@ func affectsRunningHooks(cand *state.Task, running []*state.Task) (block bool) {
 		}
 
 		// this snap has a hook running, retry later
-		if candSnap.String() == hooksup.Snap {
+		if candSnap == hooksup.Snap {
 			return true
 		}
 
@@ -1139,7 +1137,7 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	return autoRefreshChgsInFlight, nil
 }
 
-func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
+func (m *SnapManager) ensureVulnerableSnapRemoved(name naming.InstanceName) error {
 	// Do not do anything if we have already done this removal before on this
 	// device. This is because if, after we have removed vulnerable snaps the
 	// user decides to refresh to a vulnerable version of snapd, that is their
@@ -1211,7 +1209,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 
 	// remove all the inactive vulnerable revisions
 	for _, rev := range inactiveVulnRevisions {
-		tss, err := Remove(m.state, name, rev, nil)
+		tss, err := Remove(m.state, name.String(), rev, nil)
 
 		if err != nil {
 			// in case of conflict, just trigger another ensure in a little
@@ -1227,7 +1225,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 
 		chg := m.state.NewChange(removeSnapChangeKind, msg)
 		chg.AddAll(tss)
-		chg.Set("snap-names", []string{name})
+		chg.Set("snap-names", []string{name.String()})
 	}
 
 	// TODO: is it okay to set state here as done or should we do this
@@ -1258,11 +1256,11 @@ func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() erro
 	// the fixed version is 2.57.6, so if the version of the current core/snapd
 	// snap is that or higher, then we proceed (if we didn't already do this)
 
-	if err := m.ensureVulnerableSnapRemoved("snapd"); err != nil {
+	if err := m.ensureVulnerableSnapRemoved(naming.Snapd); err != nil {
 		return err
 	}
 
-	if err := m.ensureVulnerableSnapRemoved("core"); err != nil {
+	if err := m.ensureVulnerableSnapRemoved(naming.Core); err != nil {
 		return err
 	}
 
@@ -1291,7 +1289,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 
 	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureForceDevmodeDropsDevmodeFromState")
 
-	for _, name := range []string{"core", "ubuntu-core"} {
+	for _, name := range []naming.InstanceName{naming.Core, "ubuntu-core"} {
 		var snapst SnapState
 		if err := Get(m.state, name, &snapst); errors.Is(err, state.ErrNoState) {
 			// nothing to see here
@@ -1482,34 +1480,20 @@ func getSystemD() systemd.Systemd {
 
 // maybeAppendIntegrityMountOptions appends integrity mount options to the given mount
 // options in-place if the snap has validated integrity data.
-func maybeAppendIntegrityMountOptions(st *state.State, mountOptions *systemd.MountUnitOptions, info *snap.Info) error {
-	// TODO: only mount with integrity data if on UC and model base snap
-	//       has validated integrity data.
-	if !info.Revision.Store() {
-		return nil
-	}
-
-	idp, err := ValidatedIntegrityData(st, info.SnapID, info.Revision)
-	// TODO: when policy for choosing the preferred integrity method is
-	//       implemented, not having integrity data should return an error
-	//       if enforced through some policy
-	if err != nil && !errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+func maybeAppendIntegrityMountOptions(st *state.State, deviceCtx DeviceContext, mountOptions *systemd.MountUnitOptions, info *snap.Info) error {
+	snapPath := info.MountFile()
+	idp, err := integrityDataForSnap(st, deviceCtx, &info.SideInfo, snapPath)
+	if err != nil {
 		return err
 	}
-	if idp != nil {
-		if _, err := integrityLookupDataAndCrossCheck(info.MountFile(), idp); err != nil {
-			if errors.Is(err, integrity.ErrDmVerityDataNotFound) {
-				logger.Noticef("cannot find integrity data for snap %q: %v", info.InstanceName(), err)
-				return nil
-			}
-			return fmt.Errorf("cannot validate integrity data for snap %q: %w", info.InstanceName(), err)
-		}
-		integrityMountOpts, err := idp.MountOptions(info.MountFile())
-		if err != nil {
-			return err
-		}
-		mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
+	if idp == nil {
+		return nil
 	}
+	integrityMountOpts, err := idp.MountOptions(snapPath)
+	if err != nil {
+		return err
+	}
+	mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
 	return nil
 }
 
@@ -1567,7 +1551,7 @@ func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) erro
 				return err
 			}
 
-			if err := maybeAppendIntegrityMountOptions(m.state, mountOptions, info); err != nil {
+			if err := maybeAppendIntegrityMountOptions(m.state, deviceCtx, mountOptions, info); err != nil {
 				return err
 			}
 

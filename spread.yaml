@@ -124,6 +124,10 @@ environment:
     USE_PREBUILT_SNAPD_SNAP: '$(HOST: echo "${SPREAD_USE_PREBUILT_SNAPD_SNAP:-false}")'
     SNAPD_USE_PROXY: '$(HOST: echo "${SPREAD_SNAPD_USE_PROXY:-}")'
 
+    # Whether to use the package proxy for fetching snaps
+    USE_PKGPROXY: '$(HOST: echo "${SPREAD_USE_PKGPROXY:-false}")'
+    PKGPROXY_URL: '$(HOST: echo "${SPREAD_PKGPROXY_URL:-http://pkgproxy.snapd.canonical.com:3142}")'
+
     # Whether we should use pre-built packages in the ./built-pkgs/ directory
     USE_PREBUILT_PACKAGES: '$(HOST: echo "${SPREAD_USE_PREBUILT_PACKAGES:-false}")'
 
@@ -158,8 +162,8 @@ backends:
             HTTPS_PROXY: 'http://egress.ps7.internal:3128'
             http_proxy: 'http://egress.ps7.internal:3128'
             https_proxy: 'http://egress.ps7.internal:3128'
-            no_proxy: '127.0.0.1,127.0.0.53,localhost'
-            NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
+            no_proxy: '127.0.0.1,127.0.0.53,localhost,.snapd.canonical.com'
+            NO_PROXY: '127.0.0.1,127.0.0.53,localhost,.snapd.canonical.com'
             NTP_SERVER: 'ntp.ps7.internal'
         systems: &openstack-systems
             - ubuntu-16.04-64:
@@ -845,6 +849,7 @@ artifacts:
 
 exclude:
     - .git
+    - .logs
     - cmd/snap/snap
     - cmd/snapd/snapd
     - cmd/snapctl/snapctl

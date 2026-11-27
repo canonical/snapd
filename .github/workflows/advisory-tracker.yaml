@@ -1,0 +1,130 @@
+name: advisory tracker
+
+# Poll GitHub repository security advisories and track them as children of
+# SNAPDENG-37541. repository_advisory is a webhook, not an Actions trigger, so
+# this job polls the advisories API.
+#
+# This workflow runs only in canonical/snapd-security-release. It reads
+# advisories from public canonical/snapd. Every run writes the advisory
+# table to the GitHub Actions summary. ADVISORY_TRACKER_CREATE and
+# ADVISORY_TRACKER_NOTIFY are the only write switches. When
+# ADVISORY_TRACKER_CREATE is the string true, the run creates Jira tickets,
+# applies the petname on the advisory, and replaces the tracking table in
+# the parent issue description. Text above that table stays. When
+# ADVISORY_TRACKER_NOTIFY is the string true, the run posts
+# Mattermost notices. A not-created notice is still posted when CREATE is
+# off and a triage or draft advisory has no ticket. With both unset, the
+# run does not write to Jira or Mattermost. The Actions summary includes
+# the same table. Last updated and a link to this run stay on the Jira
+# parent table.
+#
+# contents: read lets checkout fetch these scripts. The track job also has
+# actions: write for the summary artifact. The token is not used to change
+# repository contents.
+# Advisory reads and summary updates prefer SNAPD_ADVISORY_GITHUB_TOKEN, which
+# needs write access to repository security advisories when a codename is
+# applied. Jira uses JIRA_EMAIL and JIRA_API_TOKEN through atlassian-python-api.
+# GitHub advisory reads use PyGithub. New codenames come from the petname package.
+
+on:
+  schedule:
+    # Every 2 hours at :00 UTC, including 08:00.
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [advisory-tracker]
+
+concurrency:
+  group: advisory-tracker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.repository == 'canonical/snapd-security-release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s .github/scripts -p 'test_advisory_tracker.py'
+
+  track:
+    needs: test
+    if: github.repository == 'canonical/snapd-security-release'
+    permissions:
+      contents: read
+      actions: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Require Jira credentials
+        env:
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          HAS_ADVISORY_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${JIRA_API_TOKEN}" || -z "${JIRA_EMAIL}" ]]; then
+              echo "::error::set JIRA_API_TOKEN and JIRA_EMAIL"
+              exit 1
+          fi
+          if [[ "${HAS_ADVISORY_TOKEN}" == "true" ]]; then
+              echo "using SNAPD_ADVISORY_GITHUB_TOKEN"
+          else
+              echo "using github.token"
+          fi
+
+      - name: Install API clients
+        run: python3 -m pip install --user 'atlassian-python-api==5.0.5' 'PyGithub==2.10.0'
+
+      - name: Install petname
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y petname
+
+      - name: Summarize advisories
+        env:
+          SNAPD_ADVISORY_GITHUB_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_BUG_LINK_FIELD: ${{ vars.JIRA_BUG_LINK_FIELD }}
+          MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}
+          ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
+          ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
+        run: |
+          set -euo pipefail
+          # The script understands the following ENV variables:
+          # SNAPD_ADVISORY_GITHUB_TOKEN
+          # GITHUB_TOKEN
+          # GITHUB_REPOSITORY
+          # JIRA_EMAIL
+          # JIRA_API_TOKEN
+          # JIRA_BASE_URL
+          # JIRA_BUG_LINK_FIELD
+          # MATTERMOST_NEW_ADVISORY_WEBHOOK_URL
+          # ADVISORY_TRACKER_CREATE
+          # ADVISORY_TRACKER_NOTIFY
+          # GITHUB_SERVER_URL
+          # GITHUB_RUN_ID
+          python3 .github/scripts/advisory_tracker.py summary --format markdown --output advisory-tracker-summary.md
+
+      - name: Upload summary
+        uses: actions/upload-artifact@v7
+        with:
+          name: advisory-tracker-summary
+          path: advisory-tracker-summary.md

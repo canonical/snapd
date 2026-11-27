@@ -170,6 +170,12 @@ void sc_verify_snap_lock(const char *snap_name) {
 
 int sc_lock_snap_user(const char *snap_name, uid_t uid) { return sc_lock_generic(snap_name, uid); }
 
+int sc_lock_devcgroup(const char *security_tag) {
+    char scope[PATH_MAX];
+    sc_must_snprintf(scope, sizeof scope, "%s.devcgroup", security_tag);
+    return sc_lock_generic(scope, 0);
+}
+
 void sc_unlock(int lock_fd) {
     // Release the lock and finish.
     debug("releasing lock %d", lock_fd);

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -297,6 +298,54 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	})
 }
 
+func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
+	logBuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
+	ts := now.Add(-10 * time.Hour).UTC().Format(time.RFC3339)
+
+	// One valid notice, notices missing each of the three timestamps.
+	stateJSON := fmt.Sprintf(`{
+		"data": {}, "changes": {}, "tasks": {},
+		"notices": [
+			{"id": "1", "type": "change-update", "key": "valid",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "2", "type": "change-update", "key": "no-first-occurred",
+			 "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "3", "type": "change-update", "key": "no-last-occurred",
+			 "first-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "4", "type": "change-update", "key": "no-last-repeated",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "5", "type": "warning", "key": "expired-notice", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "9h0m0s",
+			 "last-data": {"show-after": "16h", "last-shown": %[1]q}}
+		],
+		"last-change-id": 0, "last-task-id": 0, "last-lane-id": 0, "last-notice-id": 0
+	}`, ts)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal([]byte(stateJSON), st)
+	c.Assert(err, IsNil)
+	st.Unlock()
+
+	// Only the valid notice is kept.
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Key(), Equals, "valid")
+
+	// Each invalid timestamp is logged.
+	logs := logBuf.String()
+
+	c.Check(logs, Matches, `(?s).*Notice 2 \(public:change-update:no-first-occurred\) skipped due to invalid first-occurred time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 3 \(public:change-update:no-last-occurred\) skipped due to invalid last-occurred time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 4 \(public:change-update:no-last-repeated\) skipped due to invalid last-repeated time.*`)
+}
+
 func (s *noticesSuite) TestString(c *C) {
 	noticeJSON := []byte(`{
 		"id": "1",
@@ -478,16 +527,45 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 
 	// Add a notice (with faked time) after a long time and ensure it has repeated
 	future := time.Now().Add(delay)
+	restore := state.MockNextNoticeTimestamp(future)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", &state.AddNoticeOptions{
 		RepeatAfter: second,
-		Time:        future,
 	})
+	restore()
 	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n = noticeToMap(c, notices[0])
 	newLastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
 	c.Assert(err, IsNil)
 	c.Assert(newLastRepeated.After(lastRepeated), Equals, true)
+}
+
+func (s *noticesSuite) TestAddNoticeForExistingExpiredNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	userID := uint32(123)
+	key := "baz"
+	restore := state.MockNextNoticeTimestamp(time.Now())
+	id1, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key,
+		&state.AddNoticeOptions{ExpireAfter: time.Microsecond})
+	restore()
+	c.Assert(err, IsNil)
+	notice1 := st.Notice(id1)
+	c.Assert(notice1, NotNil)
+
+	time.Sleep(3 * time.Microsecond)
+	timestamp := time.Now()
+	c.Assert(notice1.Expired(timestamp), Equals, true)
+
+	id2, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key, nil)
+	c.Assert(err, IsNil)
+	notice2 := st.Notice(id2)
+	c.Assert(notice2, NotNil)
+
+	c.Assert(id1, Not(Equals), id2)
+	c.Assert(st.Notice(id1), IsNil)
 }
 
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
@@ -812,9 +890,10 @@ func (s *noticesSuite) TestPruneNoticesCheckpoint(c *C) {
 	st := state.New(backend)
 	st.Lock()
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		Time: old,
-	})
+
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	restore()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "456", nil)
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
@@ -842,12 +921,10 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 	defer st.Unlock()
 
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", &state.AddNoticeOptions{
-		Time: old,
-	})
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", &state.AddNoticeOptions{
-		Time: old,
-	})
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", nil)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	restore()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)

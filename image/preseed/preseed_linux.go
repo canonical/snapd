@@ -777,7 +777,7 @@ func Core20(opts *CoreOptions) error {
 	return runUC20PreseedMode(popts)
 }
 
-func classicLikePreseed(chrootDir, label string) error {
+func classicLikePreseed(chrootDir, label string, opts *ClassicOptions) error {
 	var err error
 	chrootDir, err = filepath.Abs(chrootDir)
 	if err != nil {
@@ -806,15 +806,17 @@ func classicLikePreseed(chrootDir, label string) error {
 }
 
 // Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
-func Classic(chrootDir string) error {
+// opts can be nil.
+func Classic(chrootDir string, opts *ClassicOptions) error {
 	const label = ""
-	return classicLikePreseed(chrootDir, label)
+	return classicLikePreseed(chrootDir, label, opts)
 }
 
 // Hybrid runs preseeding of a hybrid classic ubuntu system with core boot
 // components pointed by chrootDir and identified by a given system label.
-func Hybrid(chrootDir, label string) error {
-	return classicLikePreseed(chrootDir, label)
+// opts can be nil.
+func Hybrid(chrootDir, label string, opts *ClassicOptions) error {
+	return classicLikePreseed(chrootDir, label, opts)
 }
 
 func classicLikeReset(chrootDir, label string) error {

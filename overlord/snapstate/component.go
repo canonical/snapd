@@ -56,7 +56,7 @@ func InstallComponents(
 	}
 
 	var snapst SnapState
-	err := Get(st, info.InstanceName().String(), &snapst)
+	err := Get(st, info.InstanceName(), &snapst)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return nil, &snap.NotInstalledError{Snap: info.InstanceName().String()}
@@ -295,7 +295,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 
 	var snapst SnapState
 	// owner snap must be already installed
-	err := Get(st, info.InstanceName().String(), &snapst)
+	err := Get(st, info.InstanceName(), &snapst)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return nil, &snap.NotInstalledError{Snap: info.InstanceName().String()}
@@ -759,7 +759,7 @@ type RemoveComponentsOpts struct {
 // that belong to instanceName.
 func RemoveComponents(st *state.State, instanceName naming.InstanceName, compName []string, opts RemoveComponentsOpts) ([]*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, instanceName.String(), &snapst)
+	err := Get(st, instanceName, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}

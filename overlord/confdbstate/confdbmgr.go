@@ -138,9 +138,20 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 	}
 	schema := confdbAssert.Schema().DatabagSchema
 
+	// only consider this transaction's hooks, the change may contain tasks
+	// from other confdb transactions (e.g., if they were created in a
+	// non-confdb hook's change)
 	hasSaveViewHook := false
 	for _, task := range t.Change().Tasks() {
 		if task.Kind() != "run-hook" {
+			continue
+		}
+
+		var txTaskID string
+		if err := task.Get("tx-task", &txTaskID); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		if txTaskID != t.ID() {
 			continue
 		}
 

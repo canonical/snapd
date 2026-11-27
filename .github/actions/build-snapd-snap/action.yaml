@@ -76,10 +76,11 @@ runs:
 
     - name: Build snapd snap
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
-      uses: snapcore/action-build@v1.3.0
+      # v1.1.0
+      uses: canonical/craft-actions/snapcraft/pack@5d072661cd0e3a60ad1b79d6ba93db88344e2b5b
       with:
-        snapcraft-channel: 8.x/stable
-        snapcraft-args: --verbose
+        channel: 8.x/stable
+        verbosity: verbose
 
     - name: Uploading snapd snap artifact
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}

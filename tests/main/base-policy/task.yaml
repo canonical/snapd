@@ -26,11 +26,6 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core18
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
-
-    # core26 is currently only available on edge
-    if ! snap list core26 2> /dev/null; then
-        snap install --edge core26
-    fi
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core26
 
     # test-snapd-core18 is only available on amd64

@@ -166,7 +166,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			return nil
 		}
 		var snapst snapstate.SnapState
-		err := snapstate.Get(st, instanceName.String(), &snapst)
+		err := snapstate.Get(st, instanceName, &snapst)
 		if (err == nil && !snapst.IsInstalled()) || errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("snap %q is not installed", instanceName)
 		}

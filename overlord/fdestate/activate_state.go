@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -33,6 +34,8 @@ import (
 var (
 	bootLoadDiskUnlockState   = boot.LoadDiskUnlockState
 	installLoadPreinstallInfo = install.LoadPreinstallInfo
+
+	fdestateSystemEncryptedFromState = SystemEncryptedFromState
 )
 
 var errNoActivateState = errors.New("snap-bootstrap did not provide an activation state")
@@ -150,6 +153,27 @@ func SystemState(st *state.State, model *asserts.Model) (*FDESystemState, error)
 	} else {
 		ret.AutoRepairResult = repairResult.Result
 		ret.Recommendations = repairResult.Recommendations
+	}
+
+	// Special case, we installed during this boot.
+	m, err := kcmdline.KeyValues("snapd_recovery_mode")
+	if err != nil {
+		logger.Noticef("WARNING: cannot read kernel command line: %v", err)
+	} else {
+		mode, hasMode := m["snapd_recovery_mode"]
+		if hasMode && mode == "install" {
+			encrypted, err := fdestateSystemEncryptedFromState(st)
+			if err != nil {
+				logger.Noticef("WARNING: cannot read system encrypted state: %v", err)
+			} else {
+				if encrypted {
+					ret.Status = FDEStatusActive
+				} else {
+					ret.Status = FDEStatusInactive
+				}
+				return ret, nil
+			}
+		}
 	}
 
 	s, err := getActivateState(st)

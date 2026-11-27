@@ -4971,7 +4971,7 @@ func TestInstalledComponentRevisionForParallelInstance(t *testing.T) {
 	componentSideInfo := snap.NewComponentSideInfo(
 		naming.NewComponentRef("test-snap", componentName), componentRevision,
 	)
-	snapstate.Set(st, instanceName.String(), &snapstate.SnapState{
+	snapstate.Set(st, instanceName, &snapstate.SnapState{
 		Active:      true,
 		Current:     snapRevision,
 		InstanceKey: "instance",

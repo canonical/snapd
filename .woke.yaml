@@ -1,6 +1,7 @@
 ignore_files:
   - cmd/Makefile.am
   - cmd/configure.ac
+  - cmd/libsnap-confine-private/locking.h
   - cmd/libsnap-confine-private/snap.c
   - cmd/libsnap-confine-private/string-utils-test.c
   - cmd/libsnap-confine-private/string-utils.c

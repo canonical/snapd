@@ -87,7 +87,7 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 
 	for instanceName, rank := range newVitalityMap {
 		var snapst snapstate.SnapState
-		err := snapstate.Get(st, instanceName, &snapst)
+		err := snapstate.Get(st, naming.InstanceName(instanceName), &snapst)
 		// not installed, vitality-score will be applied when the snap
 		// gets installed
 		if errors.Is(err, state.ErrNoState) {

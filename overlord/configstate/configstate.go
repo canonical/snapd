@@ -64,7 +64,7 @@ func canConfigure(st *state.State, instanceName naming.InstanceName) error {
 	}
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, instanceName.String(), &snapst)
+	err := snapstate.Get(st, instanceName, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
