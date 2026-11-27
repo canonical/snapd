@@ -26,15 +26,8 @@ properties:
     type: array
     minItems: 1
     description: |-
-      Target keyslots to create. Names must not start with the
-      reserved prefixes "snap" or "default", and target keyslots
-      must not already exist. Duplicate targets are rejected. Use
-      replace-recovery-key for an existing keyslot.
+      Target keyslots to create. Names must not start with the reserved prefixes "snap" or "default". 
+      The name "default-recovery" is allowed, but highly discouraged. It should only be used in the unlikely event that a system is created without it. 
+      Target keyslots must not already exist. Duplicate targets are rejected. Use 'replace-recovery-key' for an existing keyslot.
     items:
-      allOf:
-        - $ref: 'SystemVolumeKeyslotTarget.yaml'
-        - type: object
-          properties:
-            name:
-              type: string
-              pattern: '^(?!snap|default).+$'
+      $ref: 'SystemVolumeRecoveryKeyslotTarget.yaml'

@@ -33,13 +33,4 @@ properties:
       Duplicate targets are rejected. Use GET /v2/system-volumes
       to find the target keyslot's container role and name.
     items:
-      allOf:
-        - $ref: "SystemVolumeKeyslotTarget.yaml"
-        - type: object
-          properties:
-            name:
-              type: string
-              description: |-
-                Names must not start with the reserved prefixes
-                "snap" or "default", except "default-recovery".
-              pattern: "^(?:default-recovery|(?!snap|default).+)$"
+      $ref: "SystemVolumeRecoveryKeyslotTarget.yaml"
