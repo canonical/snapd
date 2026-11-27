@@ -78,6 +78,10 @@ func runDispatch(args []string) (called string, argsAtCall []string) {
 			called = "snap-gpio-helper"
 			argsAtCall = append([]string(nil), os.Args...)
 		},
+		"snapd-kernel-probe": func() {
+			called = "snapd-kernel-probe"
+			argsAtCall = append([]string(nil), os.Args...)
+		},
 	})
 	defer restoreTools()
 
@@ -168,6 +172,20 @@ func (s *dispatchSuite) TestArgv0SnapdArgv1SnapGpioHelperDispatches(c *C) {
 	called, argsAtCall := runDispatch([]string{"snapd", "snap-gpio-helper", "export-chardev"})
 	c.Check(called, Equals, "snap-gpio-helper")
 	c.Check(argsAtCall, DeepEquals, []string{"snap-gpio-helper", "export-chardev"})
+}
+
+func (s *dispatchSuite) TestArgv0SnapdArgv1SnapdKernelProbeDispatches(c *C) {
+	called, argsAtCall := runDispatch([]string{"snapd", "snapd-kernel-probe", "apparmor-5-network-bug", "some-profile"})
+	c.Check(called, Equals, "snapd-kernel-probe")
+	c.Check(argsAtCall, DeepEquals, []string{"snapd-kernel-probe", "apparmor-5-network-bug", "some-profile"})
+}
+
+// sandbox/apparmor runs the network bug probe as "snapd snapd-kernel-probe",
+// which only works if the real dispatch table knows the tool. It must not
+// reexec into another snapd, to stay in the process's own namespace.
+func (s *dispatchSuite) TestKernelProbeIsRegisteredWithoutReexec(c *C) {
+	c.Check(snapdmain.ToolNames(), testutil.Contains, "snapd-kernel-probe")
+	c.Check(snapdmain.ReexecToolNames(), Not(testutil.Contains), "snapd-kernel-probe")
 }
 
 // --- arg stripping ---
