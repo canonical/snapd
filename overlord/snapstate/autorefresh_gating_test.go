@@ -137,7 +137,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *sn
 
 	snapName := snapInfo.SnapName().String()
 	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
-	snapstate.Set(st, snapName, &snapstate.SnapState{
+	snapstate.Set(st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
@@ -152,14 +152,14 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *sn
 	return snapInfo
 }
 
-func mockLastRefreshed(c *C, st *state.State, refreshedTime string, snaps ...string) {
+func mockLastRefreshed(c *C, st *state.State, refreshedTime string, snaps ...naming.InstanceName) {
 	refreshed, err := time.Parse(time.RFC3339, refreshedTime)
 	c.Assert(err, IsNil)
-	for _, snapName := range snaps {
+	for _, instanceName := range snaps {
 		var snapst snapstate.SnapState
-		c.Assert(snapstate.Get(st, snapName, &snapst), IsNil)
+		c.Assert(snapstate.Get(st, instanceName, &snapst), IsNil)
 		snapst.LastRefreshTime = &refreshed
-		snapstate.Set(st, snapName, &snapst)
+		snapstate.Set(st, instanceName, &snapst)
 	}
 }
 

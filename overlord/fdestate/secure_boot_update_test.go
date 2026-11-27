@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -425,7 +426,7 @@ func (s *fdeMgrSuite) testEFISecurebootPrepareConflictSnapChangesForKind(
 
 	st.Lock()
 	defer st.Unlock()
-	snapstate.Set(st, model.Kernel(), &snapstate.SnapState{
+	snapstate.Set(st, naming.InstanceName(model.Kernel()), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: model.Kernel(), Revision: snap.R(1)},

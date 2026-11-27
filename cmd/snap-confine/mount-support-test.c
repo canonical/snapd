@@ -292,6 +292,97 @@ static void test_maybe_bind_mount_managed_ca_certs_dir__returns_mounted_generati
     g_free(tmpdir);
 }
 
+// Mounting the managed CA generation must not stay in the host's shared peer
+// group. The source lives under /var/lib/snapd, which is a shared mount on the
+// host, so a plain MS_BIND inherits that propagation. If the bind is left
+// shared, a subsequent mount on /etc/ssl/certs in the snap namespace (for
+// example a snap layout over it) propagates back and over-mounts the published
+// generation on the host, corrupting the store for every snap. This test makes
+// the source shared, performs the mount, then mounts on the target and checks
+// that nothing propagated back to the source. See SNAPDENG-38144.
+static void test_maybe_bind_mount_managed_ca_certs_dir__does_not_propagate_back(void) {
+    if (geteuid() != 0) {
+        g_test_skip("this test only runs as root");
+        return;
+    }
+
+    g_assert_cmpint(unshare(CLONE_NEWNS), ==, 0);
+    g_assert_cmpint(mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL), ==, 0);
+
+    char *tmpdir = g_dir_make_tmp("snap-confine-mount-test-XXXXXX", NULL);
+    g_assert_nonnull(tmpdir);
+
+    // Replicate the host layout: the published generation lives under a shared
+    // parent, like /var/lib/snapd on Ubuntu Core.
+    char *published = create_directory_under(tmpdir, "published/gen-1");
+    char *published_parent = g_build_filename(tmpdir, "published", NULL);
+    char *merged = create_symlink_under(tmpdir, "merged", "published/gen-1");
+    char *target = create_directory_under(tmpdir, "scratch/etc/ssl/certs");
+    char *scratch = g_build_filename(tmpdir, "scratch", NULL);
+
+    // Make the generation directory a shared mount point so the bind inherits
+    // its peer group, exactly as on a real host.
+    g_assert_cmpint(mount("tmpfs", published, "tmpfs", 0, NULL), ==, 0);
+    g_assert_cmpint(mount(NULL, published, NULL, MS_SHARED, NULL), ==, 0);
+
+    sc_test_set_managed_ca_dirs(merged, published_parent);
+
+    char *generation = sc_maybe_bind_mount_managed_ca_certs_dir(scratch);
+    g_assert_cmpstr(generation, ==, "gen-1");
+    g_free(generation);
+
+    // Now mount something on the in-namespace target, like a snap layout would.
+    // If the managed-CA bind was left shared, this would propagate back and
+    // over-mount the source generation directory.
+    char *overlay = create_directory_under(tmpdir, "snap-data-certs");
+    g_assert_cmpint(mount("tmpfs", target, "tmpfs", 0, NULL), ==, 0);
+
+    // The source generation must remain a plain (non-over-mounted) mount: the
+    // only thing mounted at it is its own tmpfs from earlier.
+    char *mountinfo_path = g_build_filename("/proc/self/mountinfo", NULL);
+    char *mountinfo = NULL;
+    g_assert_true(g_file_get_contents(mountinfo_path, &mountinfo, NULL, NULL));
+
+    // Count mounts whose mount point is the source generation dir. It must be
+    // exactly one (the tmpfs we mounted to make it shared); a propagated
+    // layout mount would add a second entry with the overlay as its root.
+    guint source_mounts = 0;
+    for (char **line = g_strsplit(mountinfo, "\n", -1); *line != NULL; line++) {
+        // mountinfo field 5 is the mount point.
+        char *copy = g_strdup(*line);
+        char *saveptr = NULL;
+        const char *field = NULL;
+        int n = 0;
+        for (const char *tok = strtok_r(copy, " ", &saveptr); tok != NULL; tok = strtok_r(NULL, " ", &saveptr)) {
+            n++;
+            if (n == 5) {
+                field = tok;
+                break;
+            }
+        }
+        if (field != NULL && g_strcmp0(field, published) == 0) {
+            source_mounts++;
+        }
+        g_free(copy);
+    }
+    g_assert_cmpuint(source_mounts, ==, 1);
+
+    // Detach everything, regardless of stacking order.
+    umount2(target, MNT_DETACH);     // layout tmpfs
+    umount2(target, MNT_DETACH);     // managed-CA bind mount
+    umount2(published, MNT_DETACH);  // the shared tmpfs backing the source
+
+    g_free(mountinfo);
+    g_free(mountinfo_path);
+    g_free(overlay);
+    g_free(scratch);
+    g_free(target);
+    g_free(merged);
+    g_free(published_parent);
+    g_free(published);
+    g_free(tmpdir);
+}
+
 static void test_maybe_bind_mount_managed_ca_certs_dir__missing_destination(void) {
     char *tmpdir = g_dir_make_tmp("snap-confine-mount-test-XXXXXX", NULL);
     g_assert_nonnull(tmpdir);
@@ -433,6 +524,8 @@ static void __attribute__((constructor)) init(void) {
                     test_maybe_bind_mount_managed_ca_certs_dir__destination_symlink);
     g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/returns_mounted_generation",
                     test_maybe_bind_mount_managed_ca_certs_dir__returns_mounted_generation);
+    g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/does_not_propagate_back",
+                    test_maybe_bind_mount_managed_ca_certs_dir__does_not_propagate_back);
     g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/missing_destination",
                     test_maybe_bind_mount_managed_ca_certs_dir__missing_destination);
     g_test_add_func("/mount/sc_is_mount_point", test_sc_is_mount_point);

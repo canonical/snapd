@@ -644,8 +644,8 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	}
 
 	snapshots := make(map[string]*client.Snapshot, 3)
-	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
-		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
+	for i, name := range []naming.InstanceName{"one-snap", "too-snap", "tri-snap"} {
+		sideInfo := &snap.SideInfo{RealName: name.SnapName().String(), Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
@@ -654,16 +654,16 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 		})
 		snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name.String(), fmt.Sprint(i+1), "canary-"+name.String()), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name.String(), "common", "common-"+name.String()), 0755), check.IsNil)
 
-		snapshots[name] = &client.Snapshot{
+		snapshots[name.String()] = &client.Snapshot{
 			SetID:    1,
-			Snap:     name,
+			Snap:     name.String(),
 			Version:  "v1",
 			Revision: sideInfo.Revision,
 			Epoch:    snap.E("0"),
-			Options:  snapshotOptions[name],
+			Options:  snapshotOptions[name.String()],
 		}
 	}
 
@@ -755,8 +755,8 @@ exec /bin/tar "$@"
 	st.Lock()
 	defer st.Unlock()
 
-	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
-		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
+	for i, name := range []naming.InstanceName{"one-snap", "too-snap", "tri-snap"} {
+		sideInfo := &snap.SideInfo{RealName: name.SnapName().String(), Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
@@ -765,13 +765,13 @@ exec /bin/tar "$@"
 		})
 		snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common"), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name.String(), fmt.Sprint(i+1), "canary-"+name.String()), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name.String(), "common"), 0755), check.IsNil)
 		mode := os.FileMode(0755)
 		if i == 1 {
 			mode = 0
 		}
-		c.Assert(os.Mkdir(filepath.Join(homedir, "snap", name, "common", "common-"+name), mode), check.IsNil)
+		c.Assert(os.Mkdir(filepath.Join(homedir, "snap", name.String(), "common", "common-"+name.String()), mode), check.IsNil)
 	}
 
 	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"}, nil)
@@ -1255,8 +1255,8 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 
 	st.Lock()
 
-	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
-		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
+	for i, name := range []naming.InstanceName{"one-snap", "too-snap", "tri-snap"} {
+		sideInfo := &snap.SideInfo{RealName: name.SnapName().String(), Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
@@ -1266,8 +1266,8 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOp
 		snapInfo := snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
 		for _, home := range []string{homedirA, homedirB} {
-			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name.String(), fmt.Sprint(i+1), "canary-"+name.String()), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name.String(), "common", "common-"+name.String()), 0755), check.IsNil)
 		}
 
 		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil, opts)
@@ -1336,8 +1336,8 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 
 	st.Lock()
 
-	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
-		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
+	for i, name := range []naming.InstanceName{"one-snap", "too-snap", "tri-snap"} {
+		sideInfo := &snap.SideInfo{RealName: name.SnapName().String(), Revision: snap.R(i + 1)}
 		snapstate.Set(st, name, &snapstate.SnapState{
 			Active:   true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
@@ -1346,8 +1346,8 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		})
 		snapInfo := snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: vv1}", name), sideInfo)
 
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name.String(), fmt.Sprint(i+1), "canary-"+name.String()), 0755), check.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name.String(), "common", "common-"+name.String()), 0755), check.IsNil)
 
 		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil, nil)
 		c.Assert(err, check.IsNil)

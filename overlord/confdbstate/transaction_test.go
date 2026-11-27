@@ -125,7 +125,7 @@ func (s *transactionTestSuite) TestCommitPreservesPruningBoundaries(c *C) {
 
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
-	err = view.Unset(tx, "users[0].name")
+	err = view.Unset(tx, "users[0].name", nil)
 	c.Assert(err, IsNil)
 	err = view.Set(tx, "users[0].name", "updated")
 	c.Assert(err, IsNil)
@@ -167,6 +167,25 @@ func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	val, err := tx.Get(parsePath(c, "foo"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "baz")
+}
+
+func (s *transactionTestSuite) TestResolveReadsUncommitted(c *C) {
+	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+
+	err = tx.Set(parsePath(c, "items"), map[string]any{
+		"first":  map[string]any{"kind": "remove", "value": "one"},
+		"second": map[string]any{"kind": "keep", "value": "two"},
+	})
+	c.Assert(err, IsNil)
+
+	paths, err := tx.Resolve(
+		parsePath(c, "items.{item}[.kind={kind}].value"),
+		map[string]any{"kind": "remove"},
+	)
+	c.Assert(err, IsNil)
+	c.Assert(paths, HasLen, 1)
+	c.Assert(confdb.JoinAccessors(paths[0]), Equals, "items.first.value")
 }
 
 type failingSchema struct {
@@ -574,6 +593,9 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
 	_, err = tx.Get(parsePath(c, "foo"), nil)
+	c.Assert(err, ErrorMatches, "cannot read from aborted transaction")
+
+	_, err = tx.Resolve(parsePath(c, "foo"), nil)
 	c.Assert(err, ErrorMatches, "cannot read from aborted transaction")
 
 	_, err = tx.Data()

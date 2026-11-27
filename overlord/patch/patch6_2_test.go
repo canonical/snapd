@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type patch62Suite struct{}
@@ -368,7 +369,7 @@ func (s *patch62Suite) TestPatch62StopsAfterFirstSnapd(c *C) {
 		defer st.Unlock()
 
 		var snapdCount int
-		for _, name := range []string{"snapd", "other"} {
+		for _, name := range []naming.InstanceName{"snapd", "other"} {
 			var snapst snapstate.SnapState
 			c.Assert(snapstate.Get(st, name, &snapst), IsNil)
 			if snapst.SnapType == "snapd" {

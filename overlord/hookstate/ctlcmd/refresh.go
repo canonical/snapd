@@ -212,7 +212,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, context.InstanceName().String(), &snapst); err != nil {
+	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
 	}
 
@@ -267,7 +267,7 @@ func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
 
 	st := context.State()
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, context.InstanceName().String(), &snapst)
+	err := snapstate.Get(st, context.InstanceName(), &snapst)
 	if err != nil {
 		return fmt.Errorf("internal error: %v", err)
 	}
