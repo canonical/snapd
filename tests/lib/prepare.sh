@@ -103,9 +103,26 @@ EOF
     # We change the service configuration so reload and restart
     # the units to get them applied (if requested)
     systemctl daemon-reload
-    if [ "$restart" = true ]
-    then systemctl restart snapd.service
+    if [ "$restart" = true ]; then 
+        systemctl restart snapd.service
     fi
+}
+
+setup_snapd_pkgproxy() {
+    if [ "${USE_PKGPROXY:-}" != true ] || [ -z "${PKGPROXY_URL:-}" ]; then
+        return
+    fi
+
+    # Make snapd download through pkgproxy, with a drop-in for its service.
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/pkgproxy.conf
+[Service]
+Environment=SNAPPY_FORCE_API_URL=$PKGPROXY_URL
+EOF
+
+    # Restart snapd to apply it, where snapd is installed.
+    systemctl daemon-reload
+    systemctl restart snapd.service
 }
 
 setup_system_proxy() {
@@ -577,6 +594,7 @@ prepare_classic() {
     # The installation of the snap will restart the service, no need to restart
     # it here too. Otherwise we end up hitting systemd restart limit.
     setup_snapd_proxy false
+    setup_snapd_pkgproxy
 
     build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
     rm -rf "$build_dir"
@@ -1542,6 +1560,7 @@ prepare_ubuntu_core() {
     retry -n 10 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
 
     setup_snapd_proxy true
+    setup_snapd_pkgproxy
 
     disable_journald_rate_limiting
     disable_journald_start_limiting
