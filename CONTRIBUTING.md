@@ -161,6 +161,18 @@ phase, it's a good idea to keep the PR as a [draft][github-draft]. This stops
 reviewers from looking at code you may not be confident about. Set the PR as
 "Ready for review" when you do feel confident.
 
+Open PRs that are ready for review share a limited pool of active review slots.
+Members of the `snapd` and `ubuntu-core-devs` GitHub teams share the development
+team limit. Other contributors may have one PR in active review at a time. When
+a limit is reached, the PR is returned to draft and can be marked ready again
+after a slot becomes available.
+
+A PR stops consuming a review slot after it has two effective approvals from
+distinct reviewers and no outstanding changes request. It also releases its
+slot when it is converted to draft, closed, or merged. Losing an approval can
+make a ready PR consume a slot again; existing ready PRs are not automatically
+returned to draft if that temporarily puts the pool over its limit.
+
 During the review process, reviewers will point out defects or suggest
 alternative implementations.
 
