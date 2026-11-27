@@ -158,6 +158,8 @@ repack_base() {
         cp "$PROXY_ENV" "$unpack_dir/etc/environment"
     fi
 
+    sed -i "s/systemd-run/systemd-run --property 'ImportCredential=snapd.*'" "${unpack_dir}/usr/lib/core/run-snapd-from-snap"
+
     mkdir -p "$(dirname "$OUTPUT_SNAP")"
     snap pack --filename="$OUTPUT_SNAP" "$unpack_dir"
     rm -rf "$download_dir" "$unpack_dir"

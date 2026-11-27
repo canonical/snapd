@@ -29,6 +29,7 @@ RestartPreventExitStatus=42
 KillMode=process
 KeyringMode=shared
 FileDescriptorStoreMax=1024
+ImportCredential=snapd.*
 
 [Install]
 WantedBy=multi-user.target
