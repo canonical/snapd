@@ -328,7 +328,7 @@ check-trusted-account-keys:
 		exit 1; \
 	fi
 	@if true; then \
-		count=$$(strings $(builddir)/snapd | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		count=$$(strings $(builddir)/snapd | grep -c -E "public-key-sha3-384: [[:alnum:]_-]{64}"); \
 		if [ "$$count" -ne 2 ]; then \
 			echo "ERROR: Expected 2 public keys in snapd, found $$count" >&2; \
 			exit 1; \
@@ -341,7 +341,7 @@ check-trusted-account-keys:
 	fi
 	@# Check snap-bootstrap if it exists (Ubuntu 16.04+)
 	@if [ -f "$(builddir)/snap-bootstrap" ]; then \
-		count=$$(strings $(builddir)/snap-bootstrap | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		count=$$(strings $(builddir)/snap-bootstrap | grep -c -E "public-key-sha3-384: [[:alnum:]_-]{64}"); \
 		if [ "$$count" -ne 2 ]; then \
 			echo "ERROR: Expected 2 public keys in snap-bootstrap, found $$count" >&2; \
 			exit 1; \
@@ -354,7 +354,7 @@ check-trusted-account-keys:
 	fi
 	@# Check snap-repair (3 keys expected: 2 common + 1 repair-root)
 	@if [ -f "$(builddir)/snap-repair" ]; then \
-		count=$$(strings $(builddir)/snap-repair | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
+		count=$$(strings $(builddir)/snap-repair | grep -c -E "public-key-sha3-384: [[:alnum:]_-]{64}"); \
 		if [ "$$count" -ne 3 ]; then \
 			echo "ERROR: Expected 3 public keys in snap-repair, found $$count" >&2; \
 			exit 1; \
