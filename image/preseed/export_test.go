@@ -32,9 +32,20 @@ var (
 	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
 	CreatePreseedArtifact    = createPreseedArtifact
 	RunUC20PreseedMode       = runUC20PreseedMode
+
+	PreseedHintsFormat = preseedHintsFormat
 )
 
 type PreseedCoreOptions = preseedCoreOptions
+
+// MockMakeOverlayTempDir replaces the creation of the temporary directory
+// backing a materialized sysfs overlay, so that tests can control its location
+// and inject failures.
+func MockMakeOverlayTempDir(f func() (string, error)) (restore func()) {
+	r := testutil.Backup(&makeOverlayTempDir)
+	makeOverlayTempDir = f
+	return r
+}
 
 func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
 	oldSeedOpen := seedOpen
