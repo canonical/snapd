@@ -1987,7 +1987,8 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 	for _, connRef := range connections {
 		conn, err := m.repo.Connection(connRef)
 		if err != nil {
-			break
+			// this should never happen since we get all connections from the repo
+			return fmt.Errorf("internal error: cannot get connection %q: %w", connRef.ID(), err)
 		}
 		// "auto-disconnect" flag indicates it's a disconnect triggered as part of snap removal, in which
 		// case we want to skip the logic of marking auto-connections as 'undesired' and instead just remove
