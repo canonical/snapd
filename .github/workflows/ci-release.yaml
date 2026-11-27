@@ -1,7 +1,7 @@
 name: Release Testing
 on:
   pull_request:
-    branches: [ "release/**" ]
+    branches: [ "release/**", "prepare-release-*" ]
 
 # Granted at workflow level so the reusable spread-tests.yaml `run-spread`
 # job (which declares `pull-requests: read` for `gh pr view`) can be called
