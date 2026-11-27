@@ -60,6 +60,7 @@ func init() {
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
+	addWithStateHandler(validateSecuritySettings, nil, validateOnly)
 
 	// disk-reservation.size
 	addWithStateHandler(validateDiskSpaceReservation, nil, validateOnly)
