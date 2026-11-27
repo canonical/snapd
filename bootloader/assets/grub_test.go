@@ -69,8 +69,16 @@ func (s *grubAssetsTestSuite) testGrubConfigContains(c *C, name string, edition 
 }
 
 func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
-	s.testGrubConfigContains(c, "grub.cfg", 3,
+	s.testGrubConfigContains(c, "grub.cfg", 4,
 		"snapd_recovery_mode",
+		"run_system",
+		"try_run_system",
+		"snapd_run_system=$selected_run_system",
+		"snapd_run_system_status=trying",
+		"save_env try_run_system",
+		"load_env --file=($seed_fs)/systems/$selected_run_system/grubenv",
+		`echo "cannot find the kernel of run system $selected_run_system, rebooting"`,
+		"if chainloader (loop)/kernel.efi snapd_recovery_mode=run snapd_run_system=$selected_run_system $cmdline_args; then",
 		"set snapd_static_cmdline_args='console=ttyS0,115200n8 console=tty1 panic=-1'",
 	)
 }
@@ -143,7 +151,7 @@ func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetCrossCheck(c *C) {
 		pattern string
 	}{
 		{
-			asset: "grub.cfg", snippet: "grub.cfg:static-cmdline", edition: 3,
+			asset: "grub.cfg", snippet: "grub.cfg:static-cmdline", edition: 4,
 			content: []byte("console=ttyS0,115200n8 console=tty1 panic=-1"),
 			pattern: "set snapd_static_cmdline_args='%s'\n",
 		},

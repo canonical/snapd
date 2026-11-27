@@ -73,7 +73,7 @@ func (s *configAssetTestSuite) TestRealConfig(c *C) {
 	c.Assert(grubConfig, NotNil)
 	e, err := bootloader.EditionFromConfigAsset(bytes.NewReader(grubConfig))
 	c.Assert(err, IsNil)
-	c.Assert(e, Equals, uint(3))
+	c.Assert(e, Equals, uint(4))
 }
 
 func (s *configAssetTestSuite) TestRealRecoveryConfig(c *C) {
