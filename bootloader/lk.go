@@ -20,11 +20,14 @@
 package bootloader
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/dirs"
@@ -33,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 const (
@@ -402,6 +406,231 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 	return env.Save()
 }
 
+// bootPartitionPath returns the path to the storage backing the named boot
+// image partition.
+func (l *lk) bootPartitionPath(bootPartition string) (string, error) {
+	// TODO: for RoleSole bootloaders this will eventually be the same
+	// codepath as for non-RoleSole bootloader
+	if l.role == RoleSole {
+		return filepath.Join(l.dir(), bootPartition), nil
+	}
+	path, _, err := l.devPathForPartName(bootPartition)
+	return path, err
+}
+
+// openKernelBootImage opens the boot image shipped in the snap file of the
+// given kernel revision in the snap blob directory, where every installed
+// kernel revision is kept. This includes the kernel revision whose kernel assets
+// are being extracted, as its snap file is put there before that happens.
+func (l *lk) openKernelBootImage(env *lkenv.Env, kernel string) (interface {
+	io.ReaderAt
+	io.Closer
+	Size() int64
+}, error) {
+	snapf, err := snapfile.Open(filepath.Join(dirs.SnapBlobDir, kernel))
+	if err != nil {
+		return nil, err
+	}
+	return snapf.RandomAccessFile(env.GetBootImageName())
+}
+
+// bootPartitionHoldsBootImage returns whether the named boot image partition
+// holds the given boot image. Only as many bytes as the boot image has are
+// compared: a boot image is usually smaller than the boot image partition, and
+// io.Copy() when extracting it does not clear what lies beyond its end, so the
+// rest of the partition holds whatever was left behind by earlier, larger boot
+// images and says nothing about which boot image the partition holds.
+//
+// A failure to read either the boot image or the boot image partition is
+// returned as an error rather than reported as a mismatch, as the result decides
+// which boot image partition references get dropped.
+func (l *lk) bootPartitionHoldsBootImage(bootPartition string, bootImg io.ReaderAt, size int64) (bool, error) {
+	path, err := l.bootPartitionPath(bootPartition)
+	if err != nil {
+		return false, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	const chunkSize = 64 * 1024
+	imgBuf := make([]byte, chunkSize)
+	partBuf := make([]byte, chunkSize)
+	for off := int64(0); off < size; off += chunkSize {
+		n := int64(chunkSize)
+		if size-off < n {
+			n = size - off
+		}
+		// ReaderAt returns a non-nil error whenever it reads fewer bytes
+		// than asked for
+		if read, err := bootImg.ReadAt(imgBuf[:n], off); int64(read) != n {
+			return false, fmt.Errorf("cannot read boot image: %v", err)
+		}
+		if _, err := io.ReadFull(f, partBuf[:n]); err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				// a partition shorter than the boot image cannot hold it
+				return false, nil
+			}
+			return false, fmt.Errorf("cannot read boot image partition %s: %v", bootPartition, err)
+		}
+		if !bytes.Equal(imgBuf[:n], partBuf[:n]) {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// repairDuplicateKernelBootPartitions repairs a boot image matrix in which the
+// same kernel revision is recorded in more than one boot image partition.
+//
+// Such a matrix is the result of a bug in which finding a free boot image
+// partition for an already installed kernel revision could return a different,
+// seemingly free boot image partition rather than the one the kernel revision
+// was already assigned to, after which the kernel revision was assigned to both.
+// This wastes the boot image partition that the next kernel refresh needs, and
+// once every boot image partition is taken by the currently installed kernel no
+// free boot image partition can be found at all, permanently breaking kernel
+// refreshes on the device.
+//
+// A kernel revision named by neither snap_kernel nor snap_try_kernel is not
+// used to boot the device. The bootloader never searches the matrix for it, so
+// no boot image partition it points at can be selected, and the redundant
+// references can be dropped without comparing the boot image partitions at all.
+//
+// For a kernel revision that is referenced, every boot image partition it is
+// recorded in is compared against the boot image shipped in that kernel
+// revision's snap. The bootloader boots the kernel revision from the first boot
+// image partition it is recorded in, so that reference is the one kept, and
+// only if that boot image partition holds the boot image. All others are then
+// dropped: those that hold the same boot image are redundant, and those that do
+// not hold it are wrong. When the first boot image partition does not hold the
+// boot image, nothing is dropped: the device boots from that boot image
+// partition today, and switching the kernel revision to another one, which has
+// never booted the device, must not happen outside of try mode.
+//
+// The repair is best effort. Whenever the boot image or any of the boot image
+// partitions cannot be read, the references to that kernel revision are left
+// as they are, so the repair never makes a matrix any worse than it was found.
+// The reasons for every kernel revision whose references were left as they are
+// are returned, so they can be reported should no free boot image partition be
+// found because of them.
+func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) (notRepaired []string, err error) {
+	duplicates, err := env.DuplicateKernelBootPartitions()
+	if err != nil {
+		return nil, err
+	}
+	if len(duplicates) == 0 {
+		return nil, nil
+	}
+
+	// repair in a stable order so that what gets logged is predictable
+	kernels := make([]string, 0, len(duplicates))
+	for kernel := range duplicates {
+		kernels = append(kernels, kernel)
+	}
+	sort.Strings(kernels)
+
+	repaired := false
+	for _, kernel := range kernels {
+		ok, reason, err := l.repairDuplicateKernel(env, kernel, duplicates[kernel])
+		if err != nil {
+			return nil, err
+		}
+		if reason != "" {
+			logger.Noticef("cannot repair lk boot image matrix: %s", reason)
+			notRepaired = append(notRepaired, reason)
+		}
+		repaired = repaired || ok
+	}
+
+	if !repaired {
+		return notRepaired, nil
+	}
+
+	return notRepaired, env.Save()
+}
+
+// repairDuplicateKernel drops the redundant references to a single kernel
+// revision recorded in all of the given boot image partitions, see
+// repairDuplicateKernelBootPartitions(). It returns whether any reference was
+// dropped, or the reason why the references were left as they are.
+func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions []string) (repaired bool, notRepairedReason string, err error) {
+	keep, drops := bootPartitions[0], bootPartitions[1:]
+
+	// a kernel revision that nothing boots from cannot be booted from
+	// whichever boot image partition it is recorded in, so the redundant
+	// references can go regardless of what the boot image partitions hold
+	if !env.IsKernelReferenced(kernel) {
+		for _, drop := range drops {
+			logger.Noticef("repairing lk boot image matrix: unreferenced kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
+			if err := env.ClearKernelBootPartition(drop); err != nil {
+				return false, "", err
+			}
+		}
+		return true, "", nil
+	}
+
+	// a kernel revision that is referenced is only ever kept in a boot image
+	// partition that really holds its boot image: dropping the reference to
+	// the only boot image partition holding it would leave a boot image the
+	// bootloader can no longer find, and would let a subsequent extraction
+	// overwrite a boot image that is still needed
+	bootImg, err := l.openKernelBootImage(env, kernel)
+	if err != nil {
+		return false, fmt.Sprintf("kernel %s is recorded in more than one boot image partition but its boot image cannot be read: %v", kernel, err), nil
+	}
+	defer bootImg.Close()
+	// an empty boot image is trivially held by every boot image partition
+	if bootImg.Size() == 0 {
+		return false, fmt.Sprintf("kernel %s is recorded in more than one boot image partition but its boot image is empty", kernel), nil
+	}
+
+	var holding, notHolding []string
+	for _, bootPartition := range bootPartitions {
+		holds, err := l.bootPartitionHoldsBootImage(bootPartition, bootImg, bootImg.Size())
+		if err != nil {
+			return false, fmt.Sprintf("kernel %s is recorded in more than one boot image partition but boot image partition %s cannot be checked: %v", kernel, bootPartition, err), nil
+		}
+		if holds {
+			holding = append(holding, bootPartition)
+		} else {
+			notHolding = append(notHolding, bootPartition)
+		}
+	}
+
+	if len(holding) == 0 {
+		return false, fmt.Sprintf("kernel %s is recorded in boot image partitions %s but none of them holds its boot image", kernel, strings.Join(bootPartitions, ", ")), nil
+	}
+	// the first boot image partition in the matrix is the one the bootloader
+	// boots the kernel revision from today, never drop it in favour of another
+	// one, as that would switch the kernel revision to a boot image partition
+	// that has never booted the device, and outside of try mode
+	if holding[0] != keep {
+		return false, fmt.Sprintf("kernel %s boots from boot image partition %s which does not hold its boot image", kernel, keep), nil
+	}
+
+	for _, drop := range holding[1:] {
+		logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
+		if err := env.ClearKernelBootPartition(drop); err != nil {
+			return false, "", err
+		}
+	}
+	// a reference to a boot image partition that does not hold the boot image
+	// of the kernel revision, and is not the one the bootloader boots it from,
+	// is wrong
+	for _, drop := range notHolding {
+		logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in boot image partition %s which does not hold its boot image, keeping %s and freeing %s", kernel, drop, keep, drop)
+		if err := env.ClearKernelBootPartition(drop); err != nil {
+			return false, "", err
+		}
+	}
+
+	return true, "", nil
+}
+
 // ExtractKernelAssets extract kernel assets per bootloader specifics
 // lk bootloader requires boot partition to hold valid boot image
 // there are two boot partition available, one holding current bootimage
@@ -428,8 +657,30 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		return err
 	}
 
+	// a device that was updated by a snapd carrying the duplicate boot image
+	// partition bug may have the same kernel revision recorded in more than one
+	// boot image partition, which leaves no free boot image partition for this
+	// kernel and would make FindFreeKernelBootPartition() below fail forever.
+	// Repair the boot image matrix first so such a device can be updated again.
+	// When preparing an image the env comes straight from the gadget, there
+	// is no device whose boot image partitions could be checked, and nothing
+	// to recover.
+	var notRepaired []string
+	if !l.prepareImageTime {
+		notRepaired, err = l.repairDuplicateKernelBootPartitions(env)
+		if err != nil {
+			return err
+		}
+	}
+
 	bootPartition, err := env.FindFreeKernelBootPartition(blobName)
 	if err != nil {
+		if len(notRepaired) != 0 {
+			// the duplicates left in place are what takes the boot image
+			// partitions, report why they were, as such a device needs to be
+			// repaired manually
+			return fmt.Errorf("%v: cannot repair lk boot image matrix: %s", err, strings.Join(notRepaired, "; "))
+		}
 		return err
 	}
 
@@ -459,16 +710,9 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 			return fmt.Errorf("cannot open unpacked %s: %v", bootImg, err)
 		}
 		defer bif.Close()
-		var bpart string
-		// TODO: for RoleSole bootloaders this will eventually be the same
-		// codepath as for non-RoleSole bootloader
-		if l.role == RoleSole {
-			bpart = filepath.Join(l.dir(), bootPartition)
-		} else {
-			bpart, _, err = l.devPathForPartName(bootPartition)
-			if err != nil {
-				return err
-			}
+		bpart, err := l.bootPartitionPath(bootPartition)
+		if err != nil {
+			return err
 		}
 
 		bpf, err := os.OpenFile(bpart, os.O_WRONLY, 0660)
