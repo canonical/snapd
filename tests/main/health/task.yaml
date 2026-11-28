@@ -12,6 +12,9 @@ details: |
     It also checks that a snap app and a snap hook (other than check-health) can
     run 'snapctl set-health' and change the health value and message.
 
+    It also verifies that a snap-health notice is emitted when a snap transitions
+    to an unhealthy state, and that the notice contains the expected fields.
+
 execute: |
     echo "Test that 'try'ing a snap with a set-health hook sets health in state:"
     "$TESTSTOOLS"/snapd-state check-state '.data.health."test-snapd-health"' = "null"
@@ -24,7 +27,19 @@ execute: |
     test-snapd-health error "Something went wrong"
     "$TESTSTOOLS"/snapd-state check-state '.data.health."test-snapd-health".message' = "Something went wrong"
 
+    echo "Test that a snap-health notice is emitted when health becomes unhealthy:"
+    snap debug api "/v2/notices?types=snap-health" | \
+        gojq '.result | map(select(.key == "test-snapd-health")) | length' | MATCH '^[1-9]'
+    snap debug api "/v2/notices?types=snap-health" | \
+        gojq '.result | map(select(.key == "test-snapd-health")) | .[0]["last-data"].status' | MATCH '"error"'
+    snap debug api "/v2/notices?types=snap-health" | \
+        gojq '.result | map(select(.key == "test-snapd-health")) | .[0]["last-data"].message' | MATCH '"Something went wrong"'
+
     echo "Test that a snap hook (different from check-health) can run 'snapctl set-health':"
     snap set test-snapd-health force-health=okay
     "$TESTSTOOLS"/snapd-state check-state '.data.health."test-snapd-health".status' = "1"
+
+    echo "Test that a snap-health notice is emitted on recovery to okay:"
+    snap debug api "/v2/notices?types=snap-health" | \
+        gojq '.result | map(select(.key == "test-snapd-health")) | .[0]["last-data"].status' | MATCH '"okay"'
 

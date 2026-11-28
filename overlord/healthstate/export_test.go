@@ -32,3 +32,4 @@ func MockCheckTimeout(t time.Duration) (restore func()) {
 }
 
 var KnownStatuses = knownStatuses
+var HealthStateChanged = healthStateChanged
