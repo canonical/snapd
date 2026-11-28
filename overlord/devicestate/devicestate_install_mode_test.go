@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/confdbstate"
@@ -2311,12 +2312,20 @@ type resetTestCase struct {
 	tpm               bool
 	encrypt           bool
 	trustedBootloader bool
+	// key data is stored in LUKS2 tokens instead of sealed key files
+	tokens bool
 }
 
 func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts.Model, tc resetTestCase) error {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	bootloaderRootdir := c.MkDir()
+
+	if tc.tokens {
+		cmdline := filepath.Join(c.MkDir(), "cmdline")
+		c.Assert(os.WriteFile(cmdline, []byte("ubuntu-core.force-experimental-tokens=1"), 0644), IsNil)
+		defer kcmdline.MockProcCmdline(cmdline)()
+	}
 
 	// inject trusted keys
 	defer sysdb.InjectTrusted([]asserts.Assertion{s.storeSigning.TrustedKey})()
@@ -2495,7 +2504,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		}
 		bootMakeBootableCalled++
 
-		if tc.encrypt {
+		if tc.encrypt && !tc.tokens {
 			// those 2 keys are removed
 			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 				testutil.FileAbsent)
@@ -2506,8 +2515,9 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 				testutil.FilePresent)
 		}
 
-		// this would be done by boot
-		if tc.encrypt {
+		// this would be done by boot, with tokens the key data goes
+		// to the LUKS2 headers instead
+		if tc.encrypt && !tc.tokens {
 			err := os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
 				[]byte("save"), 0644)
 			c.Check(err, IsNil)
@@ -2589,7 +2599,18 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	c.Assert(installFactoryResetCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-	if tc.encrypt {
+	if tc.encrypt && tc.tokens {
+		c.Check(recoveryKeysRemoved, Equals, true)
+		c.Assert(bootstrapContainer, NotNil)
+		_, hasSaveKey := bootstrapContainer.Slots["default"]
+		c.Assert(hasSaveKey, Equals, true)
+		// holds the protector key of the save key
+		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FilePresent)
+		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileAbsent)
+		// no fallback key file, hence no digest
+		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),
+			testutil.FileEquals, "{}\n")
+	} else if tc.encrypt {
 		c.Check(recoveryKeysRemoved, Equals, true)
 		c.Assert(bootstrapContainer, NotNil)
 		saveKey, hasSaveKey := bootstrapContainer.Slots["default"]
@@ -2945,6 +2966,47 @@ echo "mock output of: $(basename "$0") $*"
 	// key was replaced
 	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
 		testutil.FileEquals, "save")
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyTokens(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:     false,
+		hasSystemSeed: true,
+		types:         []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, model := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
+	s.state.Lock()
+	s.addModelToState(model)
+	s.state.Unlock()
+
+	// for debug timings
+	mockedSnapCmd := testutil.MockCommand(c, "snap", `
+echo "mock output of: $(basename "$0") $*"
+`)
+	defer mockedSnapCmd.Restore()
+
+	// pretend snap-bootstrap mounted ubuntu-save, the key data is in
+	// LUKS2 tokens so there are no sealed key files on ubuntu-seed
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644), IsNil)
+
+	defer disks.MockUdevPropertiesForDevice(func(string, string) (map[string]string, error) {
+		return map[string]string{
+			"ID_FS_UUID": "570faa3d-e3bc-49db-979b-e7814b6bd390",
+		}, nil
+	})()
+
+	err := s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: true, encrypt: true, trustedBootloader: true, tokens: true,
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+		testutil.FileAbsent)
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {

@@ -1855,12 +1855,13 @@ func (m *DeviceManager) ensurePostFactoryResetAfterSeed() error {
 	}
 
 	// verify the marker
-	if err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted); err != nil {
+	hasFallbackKeyFile, err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted)
+	if err != nil {
 		return fmt.Errorf("cannot verify factory reset marker: %v", err)
 	}
 
 	if encrypted {
-		if err := rotateSaveKeyAndDeleteOldKeys(boot.InitramfsUbuntuSaveDir); err != nil {
+		if err := rotateSaveKeyAndDeleteOldKeys(boot.InitramfsUbuntuSaveDir, hasFallbackKeyFile); err != nil {
 			return fmt.Errorf("cannot remove old encryption keys: %v", err)
 		}
 	}
