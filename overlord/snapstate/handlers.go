@@ -1311,6 +1311,21 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// An installed model base must not be left inactive after a transient
+	// failure to restore its previous revision. Keep the undo task pending
+	// until the old base is linked and its next-boot configuration is
+	// restored. Reverts are excluded since their migration undo below is not
+	// safe to repeat.
+	modelBase := oldInfo.Type() == snap.TypeBase && deviceCtx.Model() != nil &&
+		oldInfo.InstanceName().String() == deviceCtx.Model().Base()
+	retryRestore := func(stage string, err error) error {
+		if !modelBase || snapsup.Revert {
+			return err
+		}
+		t.Errorf("cannot restore model base %q during %s, will retry in 3 mins: %v", oldInfo.InstanceName(), stage, err)
+		return &state.Retry{After: 3 * time.Minute}
+	}
+
 	otherInstances, err := hasOtherInstances(st, snapsup.InstanceName().String())
 	if err != nil {
 		return err
@@ -1379,12 +1394,28 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	err = m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
-		return err
+		return retryRestore("linking the previous revision", err)
 	}
+	// A failed attempt may have already updated the boot configuration (e.g.
+	// written the modeenv but failed to reseal), in which case a retry would
+	// report that no reboot is needed even though we are still running the
+	// newer base. Remember the failure so the successful retry reboots.
+	const bootRestoreFailedKey = "model-base-boot-restore-failed"
 	isUndo := true
 	reboot, err := m.backend.MaybeSetNextBoot(oldInfo, deviceCtx, isUndo)
 	if err != nil {
+		retryErr := retryRestore("restoring next boot", err)
+		if _, ok := retryErr.(*state.Retry); ok {
+			t.Set(bootRestoreFailedKey, true)
+		}
+		return retryErr
+	}
+	var bootRestoreFailed bool
+	if err := t.Get(bootRestoreFailedKey, &bootRestoreFailed); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
+	}
+	if bootRestoreFailed {
+		reboot.RebootRequired = true
 	}
 
 	// mark as active again
