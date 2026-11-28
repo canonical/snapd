@@ -544,6 +544,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 			return nil, err
 		}
 
+		_, isNewConnected := newConnectedSnaps[name]
 		// The snap is affected though a connection, set the context for the
 		// Setup() call, depending on which side of the connection it is.
 		sctx := interfaces.SetupContext{}
@@ -552,6 +553,12 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 			// Same snap appears on both the plug side and slot side,
 			// indicating a cyclic connection
 			sctx.Reason = interfaces.SnapSetupReasonCyclicallyConnectedUpdate
+		case isNewConnected:
+			if snapsWithConnectedPlugs[name] {
+				sctx.Reason = interfaces.SnapSetupReasonPlugConnectionChange
+			} else {
+				sctx.Reason = interfaces.SnapSetupReasonSlotConnectionChange
+			}
 		case snapsWithConnectedPlugs[name]:
 			sctx.Reason = interfaces.SnapSetupReasonConnectedSlotProviderUpdate
 		case snapsWithConnectedSlots[name]:
@@ -563,7 +570,6 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		if sctx.Reason == interfaces.SnapSetupReasonConnectedSlotProviderUpdate {
 			// for newly established connections, especially ones with plug side
 			// connection hook, the side effects cannot be delayed
-			_, isNewConnected := newConnectedSnaps[name]
 			sctx.CanDelayEffects = canDelay && !isNewConnected
 			if sctx.CanDelayEffects {
 				// callback only makes sense if side effects can be delayed
@@ -1008,7 +1014,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		if err != nil {
 			return err
 		}
-		if err := m.setupSnapSecurity(task, slotAppSet, slotOpts, perfTimings); err != nil {
+		side := forSlotSnap
+		if plugRef.Snap == slotRef.Snap {
+			side = forPlugSnap
+		}
+		if err := m.setupSnapSecurityFor(task, slotAppSet, slotOpts, side, perfTimings); err != nil {
 			return err
 		}
 
@@ -1020,7 +1030,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		if err != nil {
 			return err
 		}
-		if err := m.setupSnapSecurity(task, plugAppSet, plugOpts, perfTimings); err != nil {
+		if err := m.setupSnapSecurityFor(task, plugAppSet, plugOpts, forPlugSnap, perfTimings); err != nil {
 			return err
 		}
 	} else {
@@ -1130,7 +1140,13 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		if err := m.setupSnapSecurity(task, appSet, opts, perfTimings); err != nil {
+
+		side := forPlugSnap
+		if snapInfo.InstanceName() == slotRef.Snap && plugRef.Snap != slotRef.Snap {
+			side = forSlotSnap
+		}
+
+		if err := m.setupSnapSecurityFor(task, appSet, opts, side, perfTimings); err != nil {
 			return err
 		}
 	}
