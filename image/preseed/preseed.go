@@ -57,12 +57,20 @@ type CoreOptions struct {
 	PreseedSignKey string
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string
+	// optional path to a file listing the seccomp actions available in the
+	// target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail;
+	// it is bind-mounted over the chroot's actions_avail
+	SeccompActionsFile string
 	// optional sysfs overlay
 	SysfsOverlay string
 }
 
 // ClassicOptions provides optional options for classic and hybrid preseeding.
 type ClassicOptions struct {
+	// optional path to a file listing the seccomp actions available in the
+	// target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail;
+	// it is bind-mounted over the chroot's actions_avail
+	SeccompActionsFile string
 }
 
 // preseedCoreOptions holds internal preseeding options for the core case

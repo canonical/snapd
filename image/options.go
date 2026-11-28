@@ -39,6 +39,12 @@ type Options struct {
 	// (only for UC20)
 	AppArmorKernelFeaturesDir string
 
+	// SeccompActionsFile is a file listing the seccomp actions available in
+	// the target kernel, in the format of
+	// /proc/sys/kernel/seccomp/actions_avail, to bind-mount over the
+	// chroot's actions_avail when preseeding.
+	SeccompActionsFile string
+
 	// SysfsOverlay is the optional sysfs overlay to be used for
 	// preseeding.
 	// Directories from /sys/class/* and /sys/devices/platform

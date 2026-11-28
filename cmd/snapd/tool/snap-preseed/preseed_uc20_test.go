@@ -49,6 +49,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 		c.Check(opts.PrepareImageDir, Equals, tmpDir)
 		c.Check(opts.PreseedSignKey, Equals, "key")
 		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
+		c.Check(opts.SeccompActionsFile, Equals, "/seccomp-actions")
 		c.Check(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		called = true
 		return nil
@@ -56,7 +57,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	defer restorePreseed()
 
 	parser := testParser(c)
-	c.Assert(snap_preseed.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", "--sysfs-overlay", "/sysfs-overlay", tmpDir}), IsNil)
+	c.Assert(snap_preseed.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", "--seccomp-actions-file", "/seccomp-actions", "--sysfs-overlay", "/sysfs-overlay", tmpDir}), IsNil)
 	c.Check(called, Equals, true)
 }
 
@@ -78,6 +79,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 		c.Check(opts.PrepareImageDir, Equals, tmpDir)
 		c.Check(opts.PreseedSignKey, Equals, "")
 		c.Check(opts.AppArmorKernelFeaturesDir, Equals, "")
+		c.Check(opts.SeccompActionsFile, Equals, "")
 		c.Check(opts.SysfsOverlay, Equals, "")
 		called = true
 		return nil

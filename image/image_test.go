@@ -3660,6 +3660,7 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 		c.Assert(opts.PrepareImageDir, Equals, "/a/dir")
 		c.Assert(opts.PreseedSignKey, Equals, "foo")
 		c.Assert(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
+		c.Assert(opts.SeccompActionsFile, Equals, "/seccomp-actions")
 		c.Assert(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		return nil
 	})
@@ -3677,6 +3678,7 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 		SysfsOverlay:   "/sysfs-overlay",
 
 		AppArmorKernelFeaturesDir: "/custom/aa/features",
+		SeccompActionsFile:        "/seccomp-actions",
 	})
 	c.Assert(err, IsNil)
 	c.Check(preseedCalled, Equals, true)

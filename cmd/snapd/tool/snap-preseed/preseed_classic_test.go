@@ -96,14 +96,14 @@ func (s *startPreseedSuite) TestRunPreseedClassicHappy(c *C) {
 	var called bool
 	restorePreseed := snap_preseed.MockPreseedClassic(func(dir string, opts *preseed.ClassicOptions) error {
 		c.Check(dir, Equals, "/a/dir")
-		c.Check(opts, DeepEquals, &preseed.ClassicOptions{})
+		c.Check(opts, DeepEquals, &preseed.ClassicOptions{SeccompActionsFile: "/actions_avail"})
 		called = true
 		return nil
 	})
 	defer restorePreseed()
 
 	parser := testParser(c)
-	c.Assert(snap_preseed.Run(parser, []string{"/a/dir"}), IsNil)
+	c.Assert(snap_preseed.Run(parser, []string{"--seccomp-actions-file", "/actions_avail", "/a/dir"}), IsNil)
 	c.Check(called, Equals, true)
 }
 
@@ -153,13 +153,13 @@ func (s *startPreseedSuite) TestHybridHappy(c *C) {
 	snap_preseed.MockPreseedHybrid(func(dir, label string, opts *preseed.ClassicOptions) error {
 		c.Check(dir, Equals, "/a/dir")
 		c.Check(label, Equals, "system-label")
-		c.Check(opts, DeepEquals, &preseed.ClassicOptions{})
+		c.Check(opts, DeepEquals, &preseed.ClassicOptions{SeccompActionsFile: "/actions_avail"})
 		called = true
 		return nil
 	})
 
 	parser := testParser(c)
-	c.Assert(snap_preseed.Run(parser, []string{"--hybrid", "--system-label", "system-label", "/a/dir"}), IsNil)
+	c.Assert(snap_preseed.Run(parser, []string{"--hybrid", "--system-label", "system-label", "--seccomp-actions-file", "/actions_avail", "/a/dir"}), IsNil)
 	c.Check(called, Equals, true)
 }
 

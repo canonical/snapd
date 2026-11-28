@@ -224,6 +224,28 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	return &targetSnapdInfo{path: snapdPath, preseedPath: preseedPath, version: whichVer}, nil
 }
 
+// seccompActionsAvailPath is the path, relative to the root of the chroot,
+// of the kernel file listing the seccomp actions supported by the running
+// kernel. It is read by snapd, when computing the system key and deciding
+// whether profiles can use the log action, and by libseccomp, when choosing
+// the actions its filters may use.
+const seccompActionsAvailPath = "/proc/sys/kernel/seccomp/actions_avail"
+
+// readSeccompActions reads the seccomp actions available in the target kernel
+// from a file in the format of /proc/sys/kernel/seccomp/actions_avail. The
+// actions are returned as a single space-separated line.
+func readSeccompActions(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot read seccomp actions file: %v", err)
+	}
+	actions := strings.Fields(string(data))
+	if len(actions) == 0 {
+		return "", fmt.Errorf("cannot use seccomp actions file %q: no actions listed", path)
+	}
+	return strings.Join(actions, " "), nil
+}
+
 func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), err error) {
 	underPreseed := func(path string) string {
 		return filepath.Join(opts.PreseedChrootDir, path)
@@ -400,6 +422,10 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		mounts = append(mounts, []string{"--bind", opts.AppArmorKernelFeaturesDir, underPreseed("sys/kernel/security/apparmor/features")})
 	}
 
+	if opts.SeccompActionsFile != "" {
+		mounts = append(mounts, []string{"--bind", opts.SeccompActionsFile, underPreseed(seccompActionsAvailPath)})
+	}
+
 	for _, mountArgs := range mounts {
 		cmd := exec.Command("mount", mountArgs...)
 		if out, err = cmd.CombinedOutput(); err != nil {
@@ -538,8 +564,30 @@ func getSnapdVersion(rootDir, label string) (string, error) {
 	return ver, nil
 }
 
-func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targetSnapdInfo, func(), error) {
+// chrootSeccompActionsPath is where the seccomp actions of the target kernel
+// are copied to inside the chroot.
+const chrootSeccompActionsPath = "/tmp/snapd-preseed-seccomp-actions"
+
+// prepareClassicChroot chroots into preseedChroot and prepares it for running
+// snapd in preseed mode. If seccompActions is set, it is written into the
+// chroot and bind-mounted over the chroot's actions_avail, so that snapd and
+// the tools it runs use the seccomp actions of the target kernel.
+func prepareClassicChroot(preseedChroot string, reset bool, label string, seccompActions string) (*targetSnapdInfo, func(), error) {
+	// the seccomp actions are not reachable from inside the chroot, write
+	// them there first
+	if seccompActions != "" {
+		if err := os.MkdirAll(filepath.Join(preseedChroot, "tmp"), 0755); err != nil {
+			return nil, nil, fmt.Errorf("cannot copy seccomp actions into the chroot: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(preseedChroot, chrootSeccompActionsPath), []byte(seccompActions+"\n"), 0644); err != nil {
+			return nil, nil, fmt.Errorf("cannot copy seccomp actions into the chroot: %v", err)
+		}
+	}
+
 	if err := syscallChroot(preseedChroot); err != nil {
+		if seccompActions != "" {
+			os.Remove(filepath.Join(preseedChroot, chrootSeccompActionsPath))
+		}
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
 
@@ -569,6 +617,14 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targ
 		cleanup()
 	}()
 
+	if seccompActions != "" {
+		addCleanup(func() {
+			if err := os.Remove(filepath.Join(rootDir, chrootSeccompActionsPath)); err != nil {
+				fmt.Fprintf(Stdout, "cannot remove seccomp actions copy: %v\n", err)
+			}
+		})
+	}
+
 	// The best would have been to check if /proc is a mountpoint.
 	// But we would need /proc/self/mountinfo for that.
 	if !osutil.FileExists(filepath.Join(rootDir, "/proc/self/cmdline")) {
@@ -580,6 +636,19 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targ
 			cmd := exec.Command("umount", filepath.Join(rootDir, "/proc"))
 			if out, err := cmd.CombinedOutput(); err != nil {
 				fmt.Fprintf(Stdout, "cannot unmount /proc: %s\noutput: %s\n", err, out)
+			}
+		})
+	}
+
+	if seccompActions != "" {
+		cmd := exec.Command("mount", "--bind", filepath.Join(rootDir, chrootSeccompActionsPath), filepath.Join(rootDir, seccompActionsAvailPath))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return nil, nil, fmt.Errorf("cannot bind mount seccomp actions: %v\noutput: %s", err, out)
+		}
+		addCleanup(func() {
+			cmd := exec.Command("umount", filepath.Join(rootDir, seccompActionsAvailPath))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				fmt.Fprintf(Stdout, "cannot unmount seccomp actions: %s\noutput: %s\n", err, out)
 			}
 		})
 	}
@@ -768,6 +837,12 @@ func Core20(opts *CoreOptions) error {
 		return err
 	}
 
+	if opts.SeccompActionsFile != "" {
+		if _, err := readSeccompActions(opts.SeccompActionsFile); err != nil {
+			return err
+		}
+	}
+
 	popts, cleanup, err := prepareCore20Chroot(opts)
 	if err != nil {
 		return err
@@ -784,6 +859,20 @@ func classicLikePreseed(chrootDir, label string, opts *ClassicOptions) error {
 		return err
 	}
 
+	var seccompActionsFile string
+	if opts != nil {
+		seccompActionsFile = opts.SeccompActionsFile
+	}
+
+	// validate the seccomp actions of the target kernel up front
+	var seccompActions string
+	if seccompActionsFile != "" {
+		seccompActions, err = readSeccompActions(seccompActionsFile)
+		if err != nil {
+			return err
+		}
+	}
+
 	if err := checkChroot(chrootDir); err != nil {
 		return fmt.Errorf("chroot verification failed: %w", err)
 	}
@@ -794,7 +883,7 @@ func classicLikePreseed(chrootDir, label string, opts *ClassicOptions) error {
 	// runPreseedMode/runUC20PreseedMode function that handles both classic
 	// and core20.
 	const reset = false
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label, seccompActions)
 	if err != nil {
 		return fmt.Errorf("cannot prepare chroot: %w", err)
 	}
@@ -839,7 +928,7 @@ func classicLikeReset(chrootDir, label string) error {
 	}
 
 	const reset = true
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label, "")
 	if err != nil {
 		return err
 	}

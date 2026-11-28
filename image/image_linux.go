@@ -191,6 +191,7 @@ func Prepare(opts *Options) error {
 			PrepareImageDir:           opts.PrepareDir,
 			PreseedSignKey:            opts.PreseedSignKey,
 			AppArmorKernelFeaturesDir: opts.AppArmorKernelFeaturesDir,
+			SeccompActionsFile:        opts.SeccompActionsFile,
 			SysfsOverlay:              opts.SysfsOverlay,
 		}
 		return preseedCore20(coreOpts)
