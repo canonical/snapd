@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+  - value
+properties:
+  message:
+    type: string
+    description: A human-readable message identifying the keyslots that were not found.
+  kind:
+    type: string
+    enum:
+      - keyslots-not-found
+  value:
+    type: array
+    description: References to the keyslots that were not found.
+    items:
+      allOf:
+        - $ref: '../schemas/SystemVolumeKeyslotTarget.yaml'
+        - type: object
+          required:
+            - container-role

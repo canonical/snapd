@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: |-
+  Returned when the change-pin or change-passphrase action is throttled
+  because of too many authentication attempts.
+required:
+  - message
+  - kind
+  - value
+properties:
+  message:
+    type: string
+    description: A human-readable explanation of the rate limit.
+  kind:
+    type: string
+    enum:
+      - fde-change-auth-throttled
+  value:
+    type: object
+    required:
+      - retry-after
+    properties:
+      retry-after:
+        type: string
+        format: date-time
+        description: The earliest time to retry, in RFC 3339 format.

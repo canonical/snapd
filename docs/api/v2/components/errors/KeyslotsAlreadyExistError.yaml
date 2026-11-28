@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+  - value
+properties:
+  message:
+    type: string
+    description: A human-readable message identifying the keyslots that already exist.
+  kind:
+    type: string
+    enum:
+      - keyslots-already-exist
+  value:
+    type: array
+    description: References to the keyslots that already exist.
+    items:
+      allOf:
+        - $ref: '../schemas/SystemVolumeKeyslotTarget.yaml'
+        - type: object
+          required:
+            - container-role

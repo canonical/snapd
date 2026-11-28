@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumeActionCheckRecoveryKey
+description: |-
+  Check that a recovery key added during install or
+  post-install works for all targeted containers. A successful
+  check returns 200 OK. Requires root access or authorization
+  through the io.snapcraft.snapd.manage-fde Polkit action.
+  Requests through /run/snapd-snap.socket also require a connected
+  snap-fde-control or firmware-updater-support plug.
+required:
+  - action
+  - recovery-key
+properties:
+  action:
+    type: string
+    enum:
+      - check-recovery-key
+  recovery-key:
+    type: string
+    minLength: 1
+    description: The recovery key to check.
+  container-roles:
+    type: array
+    description: |-
+      Target container roles to check. If omitted, all containers
+      are checked.
+    items:
+      type: string
+      enum:
+        - system-data
+        - system-save

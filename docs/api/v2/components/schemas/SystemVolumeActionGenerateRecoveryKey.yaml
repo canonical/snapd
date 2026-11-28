@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumeActionGenerateRecoveryKey
+description: |-
+  Generate a recovery key. The returned key-id can
+  be used once within five minutes to add or replace recovery-key
+  keyslots. Requires root access or authorization through the
+  io.snapcraft.snapd.manage-fde Polkit action. Requests through
+  /run/snapd-snap.socket also require a connected
+  snap-fde-control plug.
+required:
+  - action
+properties:
+  action:
+    type: string
+    enum:
+      - generate-recovery-key

@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumeActionReplacePlatformKey
+description: |-
+  Replace existing platform keyslots to reset a PIN or passphrase,
+  change authentication modes, or change KDF options without
+  requiring the old PIN or passphrase. This action requires root
+  privileges; Polkit is used to authorize unprivileged callers.
+  Requests through /run/snapd-snap.socket also require the calling
+  snap to have a connected snap-fde-control plug.
+required:
+  - action
+  - auth-mode
+properties:
+  action:
+    type: string
+    enum:
+      - replace-platform-key
+  auth-mode:
+    type: string
+    enum:
+      - pin
+      - passphrase
+      - none
+    description: Authentication mode for the replacement keyslots.
+  passphrase:
+    allOf:
+      - $ref: 'Passphrase.yaml'
+    description: Required only when auth-mode is `passphrase`.
+  pin:
+    allOf:
+      - $ref: 'PIN.yaml'
+    description: Required only when auth-mode is `pin`.
+  keyslots:
+    type: array
+    description: |-
+      Target keyslots to replace. Each target must exist and have type `platform` and use the TPM2 platform. 
+      If omitted or empty, targets the following keyslots used during installation:
+      - container-role `system-data`, name `default`
+      - container-role `system-data`, name `default-fallback`
+      - container-role `system-save`, name `default-fallback`
+      Duplicate targets are rejected. Use GET /v2/system-volumes
+      to find the target keyslot's container role and name.
+    items:
+      $ref: 'SystemVolumePlatformKeyslotTarget.yaml'
+oneOf:
+  - required:
+      - passphrase
+    properties:
+      auth-mode:
+        enum:
+          - passphrase
+      kdf-type:
+        type: string
+        enum:
+          - argon2id
+          - argon2i
+          - pbkdf2
+        description: Optional key derivation function for passphrase authentication.
+    not:
+      required:
+        - pin
+  - required:
+      - pin
+    properties:
+      auth-mode:
+        enum:
+          - pin
+    not:
+      anyOf:
+        - required:
+            - passphrase
+        - required:
+            - kdf-type
+  - properties:
+      auth-mode:
+        enum:
+          - none
+    not:
+      anyOf:
+        - required:
+            - pin
+        - required:
+            - passphrase
+        - required:
+            - kdf-type

@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+  - value
+properties:
+  message:
+    type: string
+    description: A human-readable message identifying the containers without sufficient free keyslot capacity.
+  kind:
+    type: string
+    enum:
+      - insufficient-container-capacity
+  value:
+    type: array
+    description: Container roles without sufficient free keyslot capacity.
+    items:
+      type: string
+      enum:
+        - system-data
+        - system-save

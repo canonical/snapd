@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+allOf:
+  - $ref: 'SystemVolumeKeyslotTarget.yaml'
+  - type: object
+    properties:
+      name:
+        type: string
+        description: |-
+          Names must not start with the reserved prefixes "snap" or "default",
+          except "default" and "default-fallback".
+        pattern: '^(?:default(?:-fallback)?|(?!snap|default).+)$'

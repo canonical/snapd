@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+  - value
+properties:
+  message:
+    type: string
+    description: A human-readable message explaining why the recovery key is invalid.
+  kind:
+    type: string
+    enum:
+      - invalid-recovery-key
+  value:
+    type: object
+    required:
+      - reason
+    properties:
+      reason:
+        type: string
+        description: The reason the recovery key is invalid.
+        enum:
+          - expired
+          - not-found
+          - invalid-format
+          - invalid-value
