@@ -85,7 +85,10 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 
 const dmVerityFileSuffix = ".dmverity"
 
-var validHexDigest = regexp.MustCompile(`^[0-9a-f]+$`)
+// validHexDigest matches hex-encoded digests. Both lowercase and uppercase
+// digits are accepted to be consistent with the snap-revision assertion
+// parsing which uses hex.DecodeString and preserves the original spelling.
+var validHexDigest = regexp.MustCompile(`^[0-9a-fA-F]+$`)
 
 func integrityFilePathPrefix(snapPath string) string {
 	return strings.TrimSuffix(snapPath, ".snap") + "_"
@@ -103,6 +106,9 @@ func integrityFilePath(snapPath, digest string) string {
 func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error) {
 	switch params.Type {
 	case "dm-verity":
+		if !validHexDigest.MatchString(params.Digest) {
+			return "", fmt.Errorf("invalid dm-verity digest %q", params.Digest)
+		}
 		return integrityFilePath(snapPath, params.Digest), nil
 	default:
 		return "", fmt.Errorf("unexpected integrity data type %q", params.Type)
@@ -127,18 +133,40 @@ func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, erro
 	}
 }
 
+// FindIntegrityFilesOptions controls which integrity files are returned by
+// FindIntegrityFilesForSnap.
+type FindIntegrityFilesOptions struct {
+	// IncludePartial includes partially downloaded integrity files ending
+	// with ".partial".
+	IncludePartial bool
+}
+
 // FindIntegrityFilesForSnap returns the paths of all integrity files found
 // next to the given snap path.
-func FindIntegrityFilesForSnap(snapPath string) ([]string, error) {
+func FindIntegrityFilesForSnap(snapPath string, opts *FindIntegrityFilesOptions) ([]string, error) {
+	if opts == nil {
+		opts = &FindIntegrityFilesOptions{}
+	}
+
+	prefix := integrityFilePathPrefix(snapPath)
+	var files []string
 	// glob matches path/to/snap/<instance_name>_<revision>_*.dmverity
 	matches, err := filepath.Glob(integrityFilePath(snapPath, "*"))
 	if err != nil {
 		return nil, err
 	}
-	prefix := integrityFilePathPrefix(snapPath)
-	var files []string
+	if opts.IncludePartial {
+		// glob matches path/to/snap/<instance_name>_<revision>_*.dmverity.partial
+		partialMatches, err := filepath.Glob(integrityFilePath(snapPath, "*") + ".partial")
+		if err != nil {
+			return nil, err
+		}
+		matches = append(matches, partialMatches...)
+	}
 	for _, match := range matches {
-		digest := strings.TrimSuffix(strings.TrimPrefix(match, prefix), dmVerityFileSuffix)
+		digest := strings.TrimPrefix(match, prefix)
+		digest = strings.TrimSuffix(digest, ".partial")
+		digest = strings.TrimSuffix(digest, dmVerityFileSuffix)
 		// digests are hex-encoded, anything else (e.g. "_") means the match could
 		// be for another snap e.g. foo_1_2_<digest>.dmverity for snap foo_1
 		if !validHexDigest.MatchString(digest) {

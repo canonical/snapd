@@ -62,8 +62,8 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckSuccess(c *C) {
 	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
-	digest := "test"
-	verityFilePath := "foo_test.dmverity"
+	digest := "abcd"
+	verityFilePath := "foo_abcd.dmverity"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -95,8 +95,8 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckCrossCheckError(c *C) {
 	err := json.Unmarshal([]byte(sbJson), &sb)
 	c.Assert(err, IsNil)
 
-	digest := "test"
-	verityFilePath := "foo_test.dmverity"
+	digest := "abcd"
+	verityFilePath := "foo_abcd.dmverity"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -213,6 +213,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckNotExist(c *C) {
 
 	integrityDataParams := integrity.IntegrityDataParams{
 		Type:          "dm-verity",
+		Digest:        "abcd",
 		HashAlg:       "sha256",
 		DataBlockSize: 4096,
 		HashBlockSize: 4096,
@@ -221,7 +222,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckNotExist(c *C) {
 	hashFileName, err := integrity.LookupDataAndCrossCheck(snapPath, &integrityDataParams)
 	c.Check(hashFileName, Equals, "")
 	c.Check(errors.Is(err, integrity.ErrDmVerityDataNotFound), Equals, true)
-	c.Check(err, ErrorMatches, `dm-verity data not found: "foo_.dmverity" doesn't exist.`)
+	c.Check(err, ErrorMatches, `dm-verity data not found: "foo_abcd.dmverity" doesn't exist.`)
 }
 
 func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckAnyError(c *C) {
@@ -232,7 +233,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckAnyError(c *C) {
 	})
 	defer restore()
 
-	hashFileName, err := integrity.LookupDataAndCrossCheck(snapPath, &integrity.IntegrityDataParams{Type: "dm-verity"})
+	hashFileName, err := integrity.LookupDataAndCrossCheck(snapPath, &integrity.IntegrityDataParams{Type: "dm-verity", Digest: "abcd"})
 	c.Check(hashFileName, Equals, "")
 	c.Check(err, ErrorMatches, "any other error")
 }
@@ -311,6 +312,21 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(integrityFile, Equals, "/path/to/instance_aaa.dmverity")
 
+	// uppercase and mixed-case hex digests are accepted as-is
+	for _, digest := range []string{"ABCD", "aBcD09"} {
+		idp.Digest = digest
+		path, err := idp.IntegrityFile("/path/to/instance.snap")
+		c.Check(err, IsNil)
+		c.Check(path, Equals, "/path/to/instance_"+digest+".dmverity")
+	}
+
+	for _, digest := range []string{"", "aa/bb", "aa_bb", "../../aa", "xyz"} {
+		idp.Digest = digest
+		path, err := idp.IntegrityFile("/path/to/instance.snap")
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid dm-verity digest %q", digest))
+		c.Check(path, Equals, "")
+	}
+
 	idp = integrity.IntegrityDataParams{
 		Type:   "bad-type",
 		Digest: "aaa",
@@ -347,6 +363,10 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 		"foo_1.snap",
 		"foo_1_aaa.dmverity",
 		"foo_1_bbb.dmverity",
+		"foo_1_ccc.dmverity.partial",
+		// uppercase and mixed-case hex digests
+		"foo_1_DDD.dmverity",
+		"foo_1_EeE.dmverity.partial",
 		"foo_10_ccc.dmverity",
 		"bar_1_aaa.dmverity",
 		// not hex-encoded
@@ -354,24 +374,48 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 		// instance foo_1 revision 2 must not match snap foo revision 1
 		"foo_1_2.snap",
 		"foo_1_2_ddd.dmverity",
+		"foo_1_2_eee.dmverity.partial",
 	} {
 		c.Assert(os.WriteFile(filepath.Join(dir, name), nil, 0644), IsNil)
 	}
 
 	tests := []struct {
 		snapPath      string
+		opts          *integrity.FindIntegrityFilesOptions
 		expectedFiles []string
 	}{
 		{
 			snapPath: filepath.Join(dir, "foo_1.snap"),
 			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
 				filepath.Join(dir, "foo_1_aaa.dmverity"),
 				filepath.Join(dir, "foo_1_bbb.dmverity"),
 			},
 		},
 		{
+			snapPath: filepath.Join(dir, "foo_1.snap"),
+			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: false},
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
+				filepath.Join(dir, "foo_1_aaa.dmverity"),
+				filepath.Join(dir, "foo_1_bbb.dmverity"),
+			},
+		},
+		{
+			snapPath: filepath.Join(dir, "foo_1.snap"),
+			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: true},
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
+				filepath.Join(dir, "foo_1_aaa.dmverity"),
+				filepath.Join(dir, "foo_1_bbb.dmverity"),
+				filepath.Join(dir, "foo_1_EeE.dmverity.partial"),
+				filepath.Join(dir, "foo_1_ccc.dmverity.partial"),
+			},
+		},
+		{
 			snapPath: filepath.Join(dir, "foo_1"),
 			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_DDD.dmverity"),
 				filepath.Join(dir, "foo_1_aaa.dmverity"),
 				filepath.Join(dir, "foo_1_bbb.dmverity"),
 			},
@@ -383,13 +427,22 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 			},
 		},
 		{
+			snapPath: filepath.Join(dir, "foo_1_2.snap"),
+			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: true},
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_2_ddd.dmverity"),
+				filepath.Join(dir, "foo_1_2_eee.dmverity.partial"),
+			},
+		},
+		{
 			snapPath:      filepath.Join(dir, "baz_1.snap"),
+			opts:          &integrity.FindIntegrityFilesOptions{IncludePartial: true},
 			expectedFiles: nil,
 		},
 	}
 
 	for _, tc := range tests {
-		files, err := integrity.FindIntegrityFilesForSnap(tc.snapPath)
+		files, err := integrity.FindIntegrityFilesForSnap(tc.snapPath, tc.opts)
 		c.Assert(err, IsNil)
 		c.Check(files, DeepEquals, tc.expectedFiles)
 	}

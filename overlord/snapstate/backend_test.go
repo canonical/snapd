@@ -486,6 +486,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				},
 				DownloadInfo: snap.DownloadInfo{
 					DownloadURL: "foo_1_digest1.dmverity",
+					Size:        10,
 				},
 			},
 			{
@@ -500,6 +501,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				},
 				DownloadInfo: snap.DownloadInfo{
 					DownloadURL: "foo_1_digest2.dmverity",
+					Size:        20,
 				},
 			},
 		}

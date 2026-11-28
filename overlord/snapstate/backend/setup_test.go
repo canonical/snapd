@@ -260,6 +260,8 @@ func (s *setupSuite) TestRemoveSnapFilesRemovesIntegrityDataBeforeSnap(c *C) {
 
 	// the presence of the snap file is what triggers integrity data cleanup,
 	// so it must outlive the integrity files to be robust against restarts
+	partial := integrityFilePath + ".partial"
+	c.Assert(os.WriteFile(partial, nil, 0600), IsNil)
 	var removed []string
 	restore := backend.MockOsRemoveAll(func(path string) error {
 		if path == integrityFilePath {
@@ -274,7 +276,8 @@ func (s *setupSuite) TestRemoveSnapFilesRemovesIntegrityDataBeforeSnap(c *C) {
 	err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Check(removed, DeepEquals, []string{integrityFilePath, snapFilePath})
+	c.Check(removed, DeepEquals, []string{integrityFilePath, partial, snapFilePath})
+	c.Check(partial, testutil.FileAbsent)
 	c.Check(snapFilePath, testutil.FileAbsent)
 	c.Check(integrityFilePath, testutil.FileAbsent)
 }

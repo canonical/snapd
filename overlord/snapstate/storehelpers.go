@@ -116,10 +116,10 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
-// installSize returns total download size of snaps and their prerequisites
-// (bases and default content providers), querying the store as necessary,
-// potentially more than once. It assumes the initial list of snaps already has
-// download infos set.
+// installSize returns total download size of snaps (including their integrity
+// data) and their prerequisites (bases and default content providers),
+// querying the store as necessary, potentially more than once. It assumes the
+// initial list of snaps already has download infos set.
 // The state must be locked by the caller.
 var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, prqt PrereqTracker) (uint64, error) {
 	curSnaps, err := currentSnaps(st)
@@ -171,10 +171,10 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 	targetRevisions := make(map[string]snap.Revision, len(snaps))
 	targetComponents := make(map[string][]ComponentSetup, len(snaps))
 	for _, inst := range snaps {
-		if inst.DownloadSize() == 0 {
+		if inst.TotalInstallSize() == 0 {
 			return 0, fmt.Errorf("internal error: download info missing for %q", inst.InstanceName())
 		}
-		snapSizes[inst.InstanceName()] = uint64(inst.DownloadSize())
+		snapSizes[inst.InstanceName()] = uint64(inst.TotalInstallSize())
 		targetRevisions[inst.InstanceName().String()] = inst.Revision()
 		targetComponents[inst.InstanceName().String()] = inst.ComponentSetups()
 		resolveBaseAndContentProviders(inst)
@@ -210,9 +210,10 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 		}
 		prereqs = []string{}
 		for _, res := range results {
-			snapSizes[res.InstanceName()] = uint64(res.Size)
+			inst := installSnapInfo{Info: res.Info}
+			snapSizes[res.InstanceName()] = uint64(inst.TotalInstallSize())
 			// results may have new base or content providers
-			resolveBaseAndContentProviders(installSnapInfo{Info: res.Info})
+			resolveBaseAndContentProviders(inst)
 		}
 	}
 

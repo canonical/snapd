@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
@@ -106,7 +107,10 @@ type minimalInstallInfo interface {
 	Revision() snap.Revision
 	Type() snap.Type
 	SnapBase() string
-	DownloadSize() int64
+	// TotalInstallSize returns the total size of the files that are
+	// downloaded to install the snap, i.e. the snap blob and its associated
+	// integrity data. Components are not included.
+	TotalInstallSize() int64
 	Prereq(st *state.State, prqt PrereqTracker) []string
 	ComponentSetups() []ComponentSetup
 }
@@ -124,9 +128,25 @@ func (ins installSnapInfo) ComponentSetups() []ComponentSetup {
 	return ins.components
 }
 
-func (ins installSnapInfo) DownloadSize() int64 {
-	// XXX: should this add the integrity data size as well?
-	return ins.DownloadInfo.Size
+// TotalInstallSize returns the total size of the snap blob and its associated
+// integrity data.
+func (ins installSnapInfo) TotalInstallSize() int64 {
+	return snapTotalInstallSize(&ins.DownloadInfo, ins.IntegrityDataDownloadInfos)
+}
+
+// snapTotalInstallSize returns the size of the snap blob described by dlInfo
+// plus the size of all its integrity data variants. Counting all variants is
+// a conservative upper bound in case more than one of them ends up being
+// downloaded.
+func snapTotalInstallSize(dlInfo *snap.DownloadInfo, integrityInfos []snap.IntegrityDataDownloadInfo) int64 {
+	var size int64
+	if dlInfo != nil {
+		size = dlInfo.Size
+	}
+	for _, info := range integrityInfos {
+		size += info.Size
+	}
+	return size
 }
 
 func (ins installSnapInfo) Revision() snap.Revision {
@@ -1018,6 +1038,7 @@ func downloadTasks(
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
+		IntegrityDataDownloadInfos:  info.IntegrityDataDownloadInfos,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -2672,8 +2693,8 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 }
 
 // checkDiskSpaceDownload checks if there is enough space in rootDir to
-// download the snap and its components. If skipSnap is true, then only the
-// components are considered.
+// download the snap, its integrity data and its components. If skipSnap is
+// true, then only the components are considered.
 func checkDiskSpaceDownload(st *state.State, info minimalInstallInfo, skipSnap bool, rootDir string) error {
 	reservation, isSet := diskSpaceReservation(config.NewTransaction(st))
 	if !isSet {
@@ -2682,7 +2703,7 @@ func checkDiskSpaceDownload(st *state.State, info minimalInstallInfo, skipSnap b
 
 	var totalSize uint64
 	if !skipSnap {
-		totalSize += uint64(info.DownloadSize())
+		totalSize += uint64(info.TotalInstallSize())
 	}
 
 	// a download always creates new files, so we do not look at the
@@ -4054,11 +4075,12 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 
 		// start by installing the new snap
 		installTS, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
-			Channel:      oldSnapst.TrackingChannel,
-			DownloadInfo: &newInfo.DownloadInfo,
-			SideInfo:     &newInfo.SideInfo,
-			Type:         newInfo.Type(),
-			Version:      newInfo.Version,
+			Channel:                    oldSnapst.TrackingChannel,
+			DownloadInfo:               &newInfo.DownloadInfo,
+			SideInfo:                   &newInfo.SideInfo,
+			Type:                       newInfo.Type(),
+			Version:                    newInfo.Version,
+			IntegrityDataDownloadInfos: newInfo.IntegrityDataDownloadInfos,
 		}, nil, installContext{})
 		if err != nil {
 			return nil, err
@@ -4574,6 +4596,26 @@ func maybeRemoveSnapDownload(file string) error {
 	// skip deleting new downloads
 	if fi.ModTime().Add(maxUnusedDownloadRetention).After(now) {
 		return nil
+	}
+	// TODO: consider removing associated integrity files for component downloads as well
+	if strings.HasSuffix(file, ".snap") {
+		// remove associated integrity files for the snap before removing the
+		// snap itself since the integrity files are downloaded after the snap
+		opts := &integrity.FindIntegrityFilesOptions{IncludePartial: true}
+		integrityFiles, err := integrity.FindIntegrityFilesForSnap(file, opts)
+		if err != nil {
+			return err
+		}
+		var errs []error
+		for _, integrityFile := range integrityFiles {
+			if err := os.Remove(integrityFile); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		// keep the snap so that its integrity files can be found on retry
+		if err := strutil.JoinErrors(errs...); err != nil {
+			return err
+		}
 	}
 
 	return os.Remove(file)
