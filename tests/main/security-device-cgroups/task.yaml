@@ -76,7 +76,7 @@ restore: |
     if [ -e /etc/udev/rules.d/70-snap.test-snapd-sh.rules ]; then
         rm /etc/udev/rules.d/70-snap.test-snapd-sh.rules
         systemctl restart systemd-udevd
-        udevadm control --reload-rules
+        udevadm control --reload
         udevadm trigger
     fi
 
@@ -102,7 +102,7 @@ execute: |
     echo "When a udev rule assigning the device to the snap is added"
     content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-sh_sh\""
     echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-sh.rules
-    udevadm control --reload-rules
+    udevadm control --reload
     udevadm settle
     udevadm trigger
     udevadm settle

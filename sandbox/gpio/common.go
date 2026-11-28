@@ -191,7 +191,7 @@ func addEphemeralUdevTaggingRule(ctx context.Context, chipName string, instanceN
 
 	// make sure the rule we just dropped is loaded as sometimes it doesn't get
 	// picked up right away
-	output, err := exec.CommandContext(ctx, "udevadm", "control", "--reload-rules").CombinedOutput()
+	output, err := exec.CommandContext(ctx, "udevadm", "control", "--reload").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot reload udev rules: %w", osutil.OutputErr(output, err))
 	}
