@@ -49,6 +49,14 @@ func MockMaxBlockedMessagesPerSequence(n int) func() {
 	return testutil.Mock(&maxBlockedMessagesPerSequence, n)
 }
 
+func MockTaskMaxRetryDelay(d time.Duration) func() {
+	return testutil.Mock(&taskMaxRetryDelay, d)
+}
+
+func MockTaskMaxRetryAttempts(n int) func() {
+	return testutil.Mock(&taskMaxRetryAttempts, n)
+}
+
 type SequenceState = sequenceState
 type DeviceMgmtState = deviceMgmtState
 

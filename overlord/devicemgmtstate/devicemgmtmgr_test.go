@@ -59,11 +59,17 @@ var noopTask = func(*state.Task, *tomb.Tomb) error { return nil }
 type mockStore struct {
 	storetest.Store
 
-	assertionDB      *asserts.Database
+	assertionDB *asserts.Database
+	assertion   func(assertType *asserts.AssertionType, key []string) (asserts.Assertion, error)
+
 	exchangeMessages func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
 func (s *mockStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	if s.assertion != nil {
+		return s.assertion(assertType, key)
+	}
+
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	return ref.Resolve(s.assertionDB.Find)
 }
@@ -245,11 +251,13 @@ func (s *deviceMgmtMgrSuite) makeSerial(c *C, serial string) *asserts.Serial {
 	return as.(*asserts.Serial)
 }
 
-func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) {
-	snapstate.ReplaceStore(s.st, &mockStore{
+func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) *mockStore {
+	sto := &mockStore{
 		assertionDB:      s.storeStack.Database,
 		exchangeMessages: exchangeMessages,
-	})
+	}
+	snapstate.ReplaceStore(s.st, sto)
+	return sto
 }
 
 func (s *deviceMgmtMgrSuite) makeStoreRequestMessage(c *C, accountID, messageID, kind, token string) store.MessageWithToken {
@@ -1432,11 +1440,13 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadRawAssertion(c *C) {
 	c.Check(msg.ResponseBody["message"], Equals, "cannot decode message: assertion content/signature separator not found")
 }
 
-func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
+// validateWithoutAccountKey runs a message through validation with the signing
+// key missing from the DB and the store fetch failing with fetchErr.
+func (s *deviceMgmtMgrSuite) validateWithoutAccountKey(c *C, fetchErr error) (int, *handlers.RequestMessage) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+	sto := s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return &store.MessageExchangeResponse{
 			Messages: []store.MessageWithToken{
 				s.makeStoreRequestMessage(c, "operator", "msg1", "test-kind", "token-1"),
@@ -1452,10 +1462,13 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
 	c.Assert(err, IsNil)
 	assertstate.ReplaceDB(s.st, db)
 
-	fetchErr := fmt.Errorf("store unavailable")
-	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
-		return fetchErr
-	}))
+	fetchCalls := 0
+	sto.assertion = func(*asserts.AssertionType, []string) (asserts.Assertion, error) {
+		fetchCalls++
+		return nil, fetchErr
+	}
+	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryDelay(time.Millisecond))
+	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryAttempts(10))
 
 	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
@@ -1464,8 +1477,28 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	msg := ms.Sequences["operator/msg1"].Messages[0]
-	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus(""))
+	return fetchCalls, ms.Sequences["operator/msg1"].Messages[0]
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyTooManyRequestsRetries(c *C) {
+	fetchCalls, msg := s.validateWithoutAccountKey(c, store.ErrTooManyRequests)
+
+	// Ten retries plus the final attempt.
+	c.Check(fetchCalls, Equals, 11)
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
+	c.Check(msg.ResponseBody["message"], Equals, "cannot fetch signing key: too many requests")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyPermanentErrorNotRetried(c *C) {
+	fetchCalls, msg := s.validateWithoutAccountKey(c, &store.UnexpectedHTTPStatusError{
+		OpSummary:  "fetch assertion",
+		StatusCode: 400,
+		Method:     "GET",
+	})
+
+	c.Check(fetchCalls, Equals, 1)
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
+	c.Check(msg.ResponseBody["message"], testutil.Contains, "cannot fetch signing key: cannot fetch assertion: got unexpected HTTP status code 400")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadSignature(c *C) {
@@ -1783,6 +1816,45 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterValidate(c
 
 	c.Check(ms.Sequences["operator/msg1"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 	c.Check(ms.Sequences["operator/msg2"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageRetriesOnContextCancellation(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tb := &tomb.Tomb{}
+	handlers.Register("test-kind", &mockMessageHandler{
+		validate: func(context.Context, *state.State, handlers.RequestMessage) error {
+			// Kill the tomb mid-call to simulate a shutdown or abort racing
+			// with this handler call.
+			tb.Kill(fmt.Errorf("shutting down"))
+			return nil
+		},
+	})
+
+	storeMsg := s.makeStoreRequestMessage(c, "operator", "msg1", "test-kind", "token-1")
+	reqMsg, err := devicemgmtstate.ParseRequestMessage(storeMsg.Message)
+	c.Assert(err, IsNil)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"operator/msg1": {
+				Messages: []*handlers.RequestMessage{reqMsg},
+			},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("validate-mgmt-message", "validate msg1")
+	t.Set(devicemgmtstate.TaskMessageKey, "operator/msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err = s.mgr.DoValidateMessage(t, tb)
+	s.st.Lock()
+
+	c.Assert(err, FitsTypeOf, &state.Retry{})
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
@@ -2127,6 +2199,44 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageConcurrentWriteAfterApply(c *C) {
 		_, ok := handlers.ChangeMessageKey(applyChg)
 		c.Check(ok, Equals, true)
 	}
+}
+
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageRetriesOnContextCancellation(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tb := &tomb.Tomb{}
+	handlers.Register("test-kind", &mockMessageHandler{
+		apply: func(context.Context, *state.State, handlers.RequestMessage) (string, error) {
+			// Kill the tomb mid-call to simulate a shutdown or abort racing
+			// with this handler call.
+			tb.Kill(fmt.Errorf("shutting down"))
+			chg := s.st.NewChange("subsystem", "apply payload")
+			return chg.ID(), nil
+		},
+	})
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"operator/msg1": {
+				Messages: []*handlers.RequestMessage{
+					s.makeRequestMessage("operator", "msg1", "test-kind"),
+				},
+			},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("apply-mgmt-message", "apply msg1")
+	t.Set(devicemgmtstate.TaskMessageKey, "operator/msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err := s.mgr.DoApplyMessage(t, tb)
+	s.st.Lock()
+
+	c.Assert(err, FitsTypeOf, &state.Retry{})
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSequencedOK(c *C) {
@@ -2504,7 +2614,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseNoHandlerForMessageKind(c *C) {
 	c.Check(ms.ReadyResponses["operator/msg1"].Format, Equals, "assertion")
 }
 
-func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeEventuallyReady(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -2563,6 +2673,74 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 
 	c.Check(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["operator/msg1"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNeverReady(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryAttempts(2))
+
+	msg := s.makeRequestMessage("operator", "msg1", "test-kind")
+
+	subsysChg := s.st.NewChange("subsystem", "apply payload")
+	handlers.MarkChangeForMessage(subsysChg, *msg)
+	subsysTask := s.st.NewTask("subsys-task", "subsystem task")
+	subsysChg.AddTask(subsysTask)
+	subsysTask.SetStatus(state.DoingStatus) // never becomes ready
+	msg.ApplyChangeID = subsysChg.ID()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"operator/msg1": {Messages: []*handlers.RequestMessage{msg}},
+		},
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	handlers.Register("test-kind", &mockMessageHandler{
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
+			c.Error("resultFromChange must not be called while subsystem change is not ready")
+			return nil, nil
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			c.Check(status, Equals, asserts.MessageStatusError)
+			c.Check(string(body), Equals, fmt.Sprintf(
+				`{"message":"cannot process message: subsystem change \"%s\" did not complete after 2 attempts"}`,
+				subsysChg.ID(),
+			))
+			return s.makeResponseMessage(accountID, messageID, status, body)
+		},
+	})
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("queue-mgmt-response", "queue response for msg1")
+	t.Set(devicemgmtstate.TaskMessageKey, "operator/msg1")
+	chg.AddTask(t)
+
+	// First two attempts stay within the (mocked) budget of 2 and retry.
+	for i := 0; i < 2; i++ {
+		s.st.Unlock()
+		err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+		s.st.Lock()
+		c.Assert(err, FitsTypeOf, &state.Retry{})
+	}
+
+	// The third attempt exceeds the budget and persists a final error response.
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.Sequences, HasLen, 0)
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(subsysTask.Status(), Equals, state.AbortStatus)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
@@ -2728,6 +2906,47 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseRejectedSequenceEvicted(c *C) {
 		c.Check(ti.apply[key].Status(), Equals, state.HoldStatus, cmt)
 		c.Check(ti.queue[key].Status(), Equals, state.HoldStatus, cmt)
 	}
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseRetriesOnContextCancellation(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tb := &tomb.Tomb{}
+	msg := s.makeRequestMessage("operator", "msg1", "test-kind")
+
+	handlers.Register("test-kind", &mockMessageHandler{
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
+			// Kill the tomb mid-call to simulate a shutdown or abort racing
+			// with this handler call.
+			tb.Kill(fmt.Errorf("shutting down"))
+			return map[string]any{"ok": true}, nil
+		},
+	})
+
+	subsysChg := s.newSubsystemChange(s.st, *msg, func(t *state.Task) {
+		t.SetStatus(state.DoneStatus)
+	})
+	msg.ApplyChangeID = subsysChg.ID()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"operator/msg1": {Messages: []*handlers.RequestMessage{msg}},
+		},
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("queue-mgmt-response", "queue response for msg1")
+	t.Set(devicemgmtstate.TaskMessageKey, "operator/msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, tb)
+	s.st.Lock()
+
+	c.Assert(err, FitsTypeOf, &state.Retry{})
 }
 
 func (s *deviceMgmtMgrSuite) TestMessagesWithSameIDFromDifferentAccounts(c *C) {
