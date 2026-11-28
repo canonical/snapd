@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -47,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -411,6 +413,46 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 
 		exchange := s.mgr.ShouldExchangeMessages(ms)
 		c.Check(exchange, Equals, tt.expected, cmt)
+	}
+}
+
+func (s *deviceMgmtMgrSuite) TestShouldExchangeMessagesIntervalOverride(c *C) {
+	type test struct {
+		name     string
+		testing  bool
+		env      string
+		elapsed  time.Duration
+		expected bool
+	}
+
+	tests := []test{
+		{name: "override, elapsed past override", testing: true, env: "10m", elapsed: 11 * time.Minute, expected: true},
+		{name: "override, elapsed before override", testing: true, env: "10m", elapsed: 5 * time.Minute, expected: false},
+		{name: "override ignored when not testing", testing: false, env: "10m", elapsed: 11 * time.Minute, expected: false},
+		{name: "unparsable uses default", testing: true, env: "banana", elapsed: 11 * time.Minute, expected: false},
+		{name: "zero uses default", testing: true, env: "0m", elapsed: 11 * time.Minute, expected: false},
+	}
+
+	s.AddCleanup(devicemgmtstate.MockTimeNow(fixedTestTime))
+	s.AddCleanup(func() { os.Unsetenv("SNAPD_DEVICE_MGMT_EXCHANGE_INTERVAL") })
+
+	s.st.Lock()
+	defer s.st.Unlock()
+	setRemoteMgmtFeatureFlag(c, s.st, true)
+
+	for _, tt := range tests {
+		cmt := Commentf("%s test", tt.name)
+
+		restore := snapdenv.MockTesting(tt.testing)
+		c.Assert(os.Setenv("SNAPD_DEVICE_MGMT_EXCHANGE_INTERVAL", tt.env), IsNil, cmt)
+
+		ms := &devicemgmtstate.DeviceMgmtState{
+			Sequences:        make(map[string]*devicemgmtstate.SequenceState),
+			LastExchangeTime: fixedTestTime.Add(-tt.elapsed),
+		}
+		c.Check(s.mgr.ShouldExchangeMessages(ms), Equals, tt.expected, cmt)
+
+		restore()
 	}
 }
 
