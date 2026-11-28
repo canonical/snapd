@@ -323,6 +323,15 @@ func (m *InterfaceManager) Ensure() error {
 		return nil
 	}
 
+	// the udev monitor serves hotplug alone, see udevMonitorNeeded
+	needed, err := m.udevMonitorNeeded()
+	if err != nil {
+		return err
+	}
+	if !needed {
+		return nil
+	}
+
 	// retry udev monitor initialization every 5 minutes
 	now := time.Now()
 	if now.After(m.udevRetryTimeout) {
@@ -614,6 +623,26 @@ var (
 	createUDevMonitor               = udevmonitor.New
 	createInterfacesRequestsManager = apparmorprompting.New
 )
+
+// udevMonitorNeeded returns true if the udev monitor has something to do:
+// when the hotplug feature is enabled, or hotplug slots are left from when it
+// was, which the enumeration of the devices removes for the devices that are
+// gone. Otherwise the monitor would list every device of the system, which
+// takes a while on a small board, at every start of snapd, and drop what it
+// listed. Enabling the feature starts it with a later Ensure.
+func (m *InterfaceManager) udevMonitorNeeded() (bool, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+	enabled, err := m.hotplugEnabled()
+	if err != nil || enabled {
+		return enabled, err
+	}
+	slots, err := getHotplugSlots(m.state)
+	if err != nil {
+		return false, err
+	}
+	return len(slots) != 0, nil
+}
 
 func (m *InterfaceManager) initUDevMonitor() error {
 	mon := createUDevMonitor(m.hotplugDeviceAdded, m.hotplugDeviceRemoved, m.hotplugEnumerationDone)
