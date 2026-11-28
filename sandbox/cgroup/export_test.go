@@ -20,6 +20,7 @@ package cgroup
 
 import (
 	"context"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -155,6 +156,10 @@ func MockSyscallKill(fn func(pid int, sig syscall.Signal) error) (restore func()
 
 func MockOsReadFile(fn func(name string) ([]byte, error)) (restore func()) {
 	return testutil.Mock(&osReadFile, fn)
+}
+
+func MockFilepathWalk(fn func(root string, walkFn filepath.WalkFunc) error) (restore func()) {
+	return testutil.Mock(&filepathWalk, fn)
 }
 
 func MockMaxKillTimeout(t time.Duration) (restore func()) {
