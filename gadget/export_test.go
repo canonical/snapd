@@ -74,6 +74,8 @@ var (
 	SearchVolumeWithTraitsAndMatchParts = searchVolumeWithTraitsAndMatchParts
 	OrderStructuresByOffset             = orderStructuresByOffset
 	LayoutVolumePartially               = layoutVolumePartially
+
+	UFSBootLUDevicePathImpl = ufsBootLUDevicePathImpl
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -104,6 +106,12 @@ func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
 func MockFindVolumesMatchingDeviceAssignment(f func(gi *Info) (map[string]*Volume, error)) (restore func()) {
 	r := testutil.Backup(&VolumesForCurrentDeviceAssignment)
 	VolumesForCurrentDeviceAssignment = f
+	return r
+}
+
+func MockUFSBootLUDevicePath(mock func(diskDevPath string, bootLUNID uint8) (string, error)) (restore func()) {
+	r := testutil.Backup(&ufsBootLUDevicePath)
+	ufsBootLUDevicePath = mock
 	return r
 }
 

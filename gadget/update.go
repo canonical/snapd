@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -248,6 +250,9 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 		return diskSchema == "dos"
 	case "emmc":
 		return diskSchema == "emmc"
+	// "ufs" is not handled here: EnsureVolumeCompatibility checks ufs
+	// volumes before reaching the schema check, the assigned disk being a
+	// partitioned logical unit that the boot logical units are found from
 	default:
 		return false
 	}
@@ -341,6 +346,137 @@ func ensureVolumeEMMCCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolum
 	return gadgetStructIdxToOnDiskStruct, nil
 }
 
+// ufsBootLUNIDs maps the names of UFS volume structures to the bBootLunID
+// of the boot logical unit they refer to.
+var ufsBootLUNIDs = map[string]uint8{
+	"boot-lu-a": 1,
+	"boot-lu-b": 2,
+}
+
+// ufsBootLUDevicePathImpl returns the sysfs path of the block device of the boot
+// logical unit with the given bBootLunID, among the logical units of the UFS
+// device that the disk with the given sysfs path (as returned by
+// Disk.KernelDevicePath()) belongs to.
+//
+// Unlike eMMC boot partitions, whose device names derive from the name of the
+// disk, UFS boot logical units are separate SCSI disks whose /dev/sdX names
+// are not stable across boots, so they are looked up by their unit descriptor
+// instead. Documentation for boot_lun_id here:
+// https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-driver-ufs
+func ufsBootLUDevicePathImpl(diskDevPath string, bootLUNID uint8) (string, error) {
+	// diskDevPath is of the form:
+	// /sys/devices/.../hostH/targetH:C:T/H:C:T:L/block/sdX
+	blockDir := filepath.Dir(diskDevPath)
+	scsiDevDir := filepath.Dir(blockDir)
+	if filepath.Base(blockDir) != "block" || !osutil.IsDirectory(filepath.Join(scsiDevDir, "unit_descriptor")) {
+		return "", fmt.Errorf("disk %s is not a UFS logical unit", diskDevPath)
+	}
+
+	targetDir := filepath.Dir(scsiDevDir)
+	hctlPrefix := strings.TrimPrefix(filepath.Base(targetDir), "target") + ":"
+	entries, err := os.ReadDir(targetDir)
+	if err != nil {
+		return "", fmt.Errorf("cannot list logical units of UFS device: %v", err)
+	}
+
+	var found, foundHCTL string
+	for _, entry := range entries {
+		hctl := entry.Name()
+		if !strings.HasPrefix(hctl, hctlPrefix) {
+			continue
+		}
+		lun, err := strconv.ParseUint(strings.TrimPrefix(hctl, hctlPrefix), 10, 64)
+		if err != nil {
+			continue
+		}
+		// skip well known logical units (REPORT LUNS, UFS device, boot,
+		// RPMB), which Linux maps to 0xc1xx: the boot well known logical
+		// unit in particular is an alias of the enabled boot logical unit
+		if lun&0xff00 == 0xc100 {
+			continue
+		}
+		luDir := filepath.Join(targetDir, hctl)
+		idPath := filepath.Join(luDir, "unit_descriptor", "boot_lun_id")
+		if !osutil.FileExists(idPath) {
+			continue
+		}
+		blockDevs, err := filepath.Glob(filepath.Join(luDir, "block", "*"))
+		if err != nil {
+			return "", fmt.Errorf("internal error: %v", err)
+		}
+		if len(blockDevs) != 1 {
+			continue
+		}
+
+		content, err := os.ReadFile(idPath)
+		if err != nil {
+			return "", fmt.Errorf("cannot read boot LUN ID of logical unit %s: %v", hctl, err)
+		}
+		// the kernel formats it as 0x%02X
+		id, err := strconv.ParseUint(strings.TrimSpace(string(content)), 0, 8)
+		if err != nil {
+			return "", fmt.Errorf("cannot parse boot LUN ID of logical unit %s: %v", hctl, err)
+		}
+		if uint8(id) != bootLUNID {
+			continue
+		}
+		if found != "" {
+			return "", fmt.Errorf("both %s and %s have boot LUN ID %d", foundHCTL, hctl, bootLUNID)
+		}
+		found, foundHCTL = blockDevs[0], hctl
+	}
+	if found == "" {
+		return "", fmt.Errorf("no logical unit has boot LUN ID %d", bootLUNID)
+	}
+	return found, nil
+}
+
+var ufsBootLUDevicePath = ufsBootLUDevicePathImpl
+
+// resolveUFSBootLU returns the sysfs path and the device node of the boot
+// logical unit for the given UFS volume structure name, among the logical
+// units of the UFS device of the disk with the given sysfs device path.
+func resolveUFSBootLU(diskDevPath, structName string) (devPath, devNode string, err error) {
+	bootLUNID, ok := ufsBootLUNIDs[structName]
+	if !ok {
+		return "", "", fmt.Errorf("%q is not a valid UFS boot logical unit name", structName)
+	}
+	devPath, err = ufsBootLUDevicePath(diskDevPath, bootLUNID)
+	if err != nil {
+		return "", "", fmt.Errorf("cannot find UFS boot logical unit for %s: %v", structName, err)
+	}
+	return devPath, filepath.Join("/dev", filepath.Base(devPath)), nil
+}
+
+func ensureVolumeUFSCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume) (map[int]*OnDiskStructure, error) {
+	disk, err := disks.DiskFromDeviceName(diskVolume.Device)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get disk for device %s: %v", diskVolume.Device, err)
+	}
+	if gadgetVolume.AssignedDevice != "" {
+		assignedDisk, err := disks.DiskFromDeviceName(gadgetVolume.AssignedDevice)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get disk for assigned device %s: %v", gadgetVolume.AssignedDevice, err)
+		}
+		if assignedDisk.Dev() != disk.Dev() {
+			return nil, fmt.Errorf("device %s does not match assigned device %s", diskVolume.Device, gadgetVolume.AssignedDevice)
+		}
+	}
+	gadgetStructIdxToOnDiskStruct := map[int]*OnDiskStructure{}
+	for _, gs := range gadgetVolume.Structure {
+		_, luNode, err := resolveUFSBootLU(disk.KernelDevicePath(), gs.Name)
+		if err != nil {
+			return nil, err
+		}
+		ds := &OnDiskStructure{
+			Name: gs.Name,
+			Node: luNode,
+		}
+		gadgetStructIdxToOnDiskStruct[gs.YamlIndex] = ds
+	}
+	return gadgetStructIdxToOnDiskStruct, nil
+}
+
 // VolumeCompatibilityOptions is a set of options for determining how
 // strict to be when evaluating whether an on-disk structure matches a laid out
 // structure.
@@ -380,6 +516,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	// with the eMMC structures
 	if isVolumeEMMC(gadgetVolume) {
 		return ensureVolumeEMMCCompatibility(gadgetVolume, diskVolume)
+	}
+	// UFS boot logical units are found from the UFS device of the disk
+	if isVolumeUFS(gadgetVolume) {
+		return ensureVolumeUFSCompatibility(gadgetVolume, diskVolume)
 	}
 
 	eq := func(ds *OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
@@ -700,6 +840,37 @@ func diskTraitsFromEMMCDevice(diskLayout *OnDiskVolume, mmc disks.Disk, vol *Vol
 	}, nil
 }
 
+func diskTraitsFromUFSDevice(diskLayout *OnDiskVolume, disk disks.Disk, vol *Volume) (res DiskVolumeDeviceTraits, err error) {
+	mappedStructures := make([]DiskStructureDeviceTraits, 0, len(vol.Structure))
+	for _, vs := range vol.Structure {
+		devPath, devNode, err := resolveUFSBootLU(disk.KernelDevicePath(), vs.Name)
+		if err != nil {
+			return res, err
+		}
+
+		sz, err := disks.SizeInBytes(devNode)
+		if err != nil {
+			return res, fmt.Errorf("cannot get size of device %s: %v", devNode, err)
+		}
+
+		mappedStructures = append(mappedStructures, DiskStructureDeviceTraits{
+			OriginalDevicePath: devPath,
+			OriginalKernelPath: devNode,
+			Size:               quantity.Size(sz),
+		})
+	}
+
+	return DiskVolumeDeviceTraits{
+		OriginalDevicePath: disk.KernelDevicePath(),
+		OriginalKernelPath: disk.KernelDeviceNode(),
+		DiskID:             disk.DiskID(),
+		Structure:          mappedStructures,
+		Size:               diskLayout.Size,
+		SectorSize:         diskLayout.SectorSize,
+		Schema:             disk.Schema(),
+	}, nil
+}
+
 // TODO:ICE: remove this as we only support LUKS (and ICE is a variant of LUKS now)
 type DiskEncryptionMethod string
 
@@ -770,6 +941,10 @@ func DiskTraitsFromDeviceAndValidate(vol *Volume, dev string, opts *DiskVolumeVa
 		// in any normal setting, but appear as different devices instead. We have to handle
 		// this.
 		return diskTraitsFromEMMCDevice(diskLayout, disk, vol)
+	}
+	// Similarly, UFS boot logical units are separate disks of the UFS device
+	if vol.Schema == schemaUFS {
+		return diskTraitsFromUFSDevice(diskLayout, disk, vol)
 	}
 
 	diskPartitions, err := disk.Partitions()
@@ -1121,6 +1296,17 @@ func buildLocationsForVolumeStructures(vol *Volume, disk disks.Disk, structs map
 				default:
 					return nil, fmt.Errorf("structure %s on volume %s is not a valid eMMC partition", volStruct.Name, vol.Name)
 				}
+			}
+			// Similarly, UFS boot logical units are separate disks. They
+			// are found again from the UFS device as their device node
+			// names are not stable.
+			if vol.Schema == schemaUFS {
+				_, devNode, err := resolveUFSBootLU(disk.KernelDevicePath(), volStruct.Name)
+				if err != nil {
+					return nil, fmt.Errorf("structure %s on volume %s is not a valid UFS boot logical unit: %v", volStruct.Name, vol.Name, err)
+				}
+				loc.Device = devNode
+				loc.Offset = 0
 			}
 		}
 		locations[volYamlIndex] = loc
@@ -1607,8 +1793,9 @@ func arePartitionTypesCompatible(from, to *VolumeStructure) bool {
 func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) error {
 	from := &fromV.Structure[fromIdx]
 	to := &toV.Structure[toIdx]
-	if !toV.HasPartial(PartialSchema) && toV.Schema == schemaGPT && from.Name != to.Name {
-		// partition names are only effective when GPT is used
+	if (isHardwareBootAreaVolume(toV) || !toV.HasPartial(PartialSchema) && toV.Schema == schemaGPT) && from.Name != to.Name {
+		// partition names are only effective when GPT is used, eMMC and
+		// UFS structure names select the boot area to write to
 		return fmt.Errorf("cannot change structure name from %q to %q",
 			from.Name, to.Name)
 	}
