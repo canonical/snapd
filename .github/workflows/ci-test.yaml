@@ -78,8 +78,8 @@ jobs:
       fail-fast: false
       matrix:
         runs-on:
-          - '["ubuntu-24.04"]'
-          - ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+          - '["ubuntu-26.04"]'
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "resolute", "ARM64", "large"]' || '["ubuntu-26.04-arm"]' }}
         toolchain: ${{ fromJSON(needs.snap-toolchains.outputs.toolchains) }}
         variant:
           # test version is a build of snapd with test keys and should
@@ -91,9 +91,9 @@ jobs:
         # to keep the number of builds down as we currently don't have a
         # clear need for these excluded builds.
         exclude:
-          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "resolute", "ARM64", "large"]' || '["ubuntu-26.04-arm"]' }}
             toolchain: FIPS
-          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "resolute", "ARM64", "large"]' || '["ubuntu-26.04-arm"]' }}
             variant: pristine
 
   ubuntu-image-build-not-required:
