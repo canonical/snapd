@@ -76,10 +76,10 @@ func (s *grubAssetsTestSuite) TestGrubConf(c *C) {
 }
 
 func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
-	s.testGrubConfigContains(c, "grub-recovery.cfg", 2,
+	s.testGrubConfigContains(c, "grub-recovery.cfg", 3,
 		"snapd_recovery_mode",
 		"snapd_recovery_system",
-		"set snapd_static_cmdline_args='console=ttyS0 console=tty1 panic=-1'",
+		"set snapd_static_cmdline_args='console=ttyS0,115200n8 console=tty1 panic=-1'",
 	)
 }
 
@@ -148,8 +148,8 @@ func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetCrossCheck(c *C) {
 			pattern: "set snapd_static_cmdline_args='%s'\n",
 		},
 		{
-			asset: "grub-recovery.cfg", snippet: "grub-recovery.cfg:static-cmdline", edition: 2,
-			content: []byte("console=ttyS0 console=tty1 panic=-1"),
+			asset: "grub-recovery.cfg", snippet: "grub-recovery.cfg:static-cmdline", edition: 3,
+			content: []byte("console=ttyS0,115200n8 console=tty1 panic=-1"),
 			pattern: "set snapd_static_cmdline_args='%s'\n",
 		},
 	} {
