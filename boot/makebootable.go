@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -361,22 +362,66 @@ type makeRunnableOptions struct {
 	UseTokens                 bool
 }
 
+// resolveBootSnapPath returns the target of the given path if it is a symlink,
+// or the path itself otherwise.
+func resolveBootSnapPath(orig string) (string, error) {
+	if !osutil.IsSymlink(orig) {
+		return orig, nil
+	}
+	return os.Readlink(orig)
+}
+
 func copyBootSnap(orig string, filename string, dstSnapBlobDir string) error {
 	// if the source path is a symlink, don't copy the symlink, copy the
 	// target file instead of copying the symlink, as the initramfs won't
 	// follow the symlink when it goes to mount the base and kernel snaps by
 	// design as the initramfs should only be using trusted things from
 	// ubuntu-data to boot in run mode
-	if osutil.IsSymlink(orig) {
-		link, err := os.Readlink(orig)
-		if err != nil {
-			return err
-		}
-		orig = link
+	orig, err := resolveBootSnapPath(orig)
+	if err != nil {
+		return err
 	}
 	dst := filepath.Join(dstSnapBlobDir, filename)
 	if err := osutil.CopyFile(orig, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 		return err
+	}
+	return nil
+}
+
+// copyBootSnapIntegrityData copies the integrity data found next to the given
+// boot snap into the destination snap blob directory.
+func copyBootSnapIntegrityData(info *snap.Info, orig string, dstSnapBlobDir string) error {
+	// integrity data is only used for snaps with a store revision
+	if !info.Revision.Store() {
+		return nil
+	}
+	// integrity data is looked up next to the actual snap file rather than
+	// next to a symlink to it, e.g. in install mode the snap is a symlink to
+	// the seed snap, but integrity data is only linked next to the symlink
+	// if the snap was mounted with integrity data during seeding
+	orig, err := resolveBootSnapPath(orig)
+	if err != nil {
+		return err
+	}
+	integrityFiles, err := integrity.FindIntegrityFilesForSnap(orig)
+	if err != nil {
+		return fmt.Errorf("cannot find integrity data for snap %q: %v", info.InstanceName(), err)
+	}
+	if len(integrityFiles) == 0 {
+		return nil
+	}
+	// integrity files are named <instance_name>_<revision>_<digest>.dmverity
+	// and are copied as is, so the snap file name must match the expected one.
+	// This holds for store revisions as asserted seed snaps are named
+	// <snap_name>_<revision>.snap and essential snaps have no instance key.
+	if filepath.Base(orig) != info.Filename() {
+		// XXX: should this be relaxed to ignore copying integrity data instead of failing?
+		return fmt.Errorf("internal error: cannot copy integrity data for snap %q: unexpected snap file name %q", info.InstanceName(), filepath.Base(orig))
+	}
+	for _, integrityFile := range integrityFiles {
+		if err := copyBootSnap(integrityFile, filepath.Base(integrityFile), dstSnapBlobDir); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -540,16 +585,22 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 		return err
 	}
 	for _, origDest := range []struct {
-		orig     string
-		fileName string
+		orig string
+		info *snap.Info
 	}{
-		{orig: bootWith.BasePath, fileName: bootWith.Base.Filename()},
-		{orig: bootWith.KernelPath, fileName: bootWith.Kernel.Filename()},
-		{orig: bootWith.GadgetPath, fileName: bootWith.Gadget.Filename()}} {
-		if err := copyBootSnap(origDest.orig, origDest.fileName, snapBlobDir); err != nil {
+		{orig: bootWith.BasePath, info: bootWith.Base},
+		{orig: bootWith.KernelPath, info: bootWith.Kernel},
+		{orig: bootWith.GadgetPath, info: bootWith.Gadget}} {
+		if err := copyBootSnap(origDest.orig, origDest.info.Filename(), snapBlobDir); err != nil {
+			return err
+		}
+		// copy the integrity data of the snap as well, which is needed to
+		// mount the snap with integrity protection
+		if err := copyBootSnapIntegrityData(origDest.info, origDest.orig, snapBlobDir); err != nil {
 			return err
 		}
 	}
+	// TODO: copy integrity data for kernel-modules components
 	for _, kmod := range bootWith.KernelMods {
 		if err := copyBootSnap(kmod.CompPath, kmod.CompPlaceInfo.Filename(), snapBlobDir); err != nil {
 			return err
