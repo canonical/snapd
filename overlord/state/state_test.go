@@ -591,7 +591,6 @@ func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
 		"data",
 		"changes",
 		"tasks",
-		"warnings",
 		"notices",
 		"cache",
 		"pendingChangeByAttr",
@@ -775,7 +774,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Warnf("hello") },
 		func() { st.OkayWarnings(time.Time{}) },
 		func() { st.UnshowAllWarnings() },
-		func() { st.AddNotice(nil, state.WarningNotice, "foo", nil) },
+		func() { st.Warnf("foo") },
 		func() { st.DrainNotices(nil) },
 	}
 
@@ -847,11 +846,10 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.Task(t5.ID()), IsNil)
 	state.MockTaskTimes(t5, now.Add(-pruneWait), now.Add(-pruneWait))
 
+	restore := state.MockNextNoticeTimestamp(now.Add(-state.DefaultWarningExpireAfter))
 	// two warnings, one expired
-	st.AddWarning("hello", &state.AddWarningOptions{
-		Time:        now.Add(-state.DefaultWarningExpireAfter),
-		RepeatAfter: state.DefaultWarningRepeatAfter,
-	})
+	st.Warnf("hello")
+	restore()
 	st.Warnf("hello again")
 
 	past := time.Now().AddDate(-1, 0, 0)

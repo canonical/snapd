@@ -298,6 +298,27 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	})
 }
 
+func (s *noticesSuite) TestUnmarshalErrors(c *C) {
+	var n *state.Notice
+	c.Check(json.Unmarshal([]byte(`42`), &n), ErrorMatches, ".* cannot unmarshal .*")
+
+	type T struct{ b, e string }
+	// validity check
+	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`
+	c.Check(json.Unmarshal([]byte(b), &n), IsNil)
+	for _, t := range []T{
+		// some bogus values
+		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006"                , "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006"                , "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
+	} {
+		var n *state.Notice
+		c.Check(json.Unmarshal([]byte(t.b), &n), ErrorMatches, t.e)
+	}
+}
+
 func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 	now := time.Now()
 	restore := state.MockTime(now)
@@ -308,7 +329,8 @@ func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 
 	ts := now.Add(-10 * time.Hour).UTC().Format(time.RFC3339)
 
-	// One valid notice, notices missing each of the three timestamps.
+	// One valid notice, notices missing each of the three timestamps,
+	// warning notices with invalid data and expire-after, and an expired notice.
 	stateJSON := fmt.Sprintf(`{
 		"data": {}, "changes": {}, "tasks": {},
 		"notices": [
@@ -320,7 +342,16 @@ func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 			 "first-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
 			{"id": "4", "type": "change-update", "key": "no-last-repeated",
 			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s"},
-			{"id": "5", "type": "warning", "key": "expired-notice", "last-repeated": %[1]q,
+			{"id": "5", "type": "warning", "key": "bad-last-shown", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s",
+			 "last-data": {"last-shown": "0"}},
+			{"id": "6", "type": "warning", "key": "bad-show-after", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s",
+			 "last-data": {"show-after": "16d"}},
+			{"id": "7", "type": "warning", "key": "no-expire-after", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q,
+			 "last-data": {"show-after": "16h", "last-shown": %[1]q}},
+			{"id": "8", "type": "warning", "key": "expired-notice", "last-repeated": %[1]q,
 			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "9h0m0s",
 			 "last-data": {"show-after": "16h", "last-shown": %[1]q}}
 		],
@@ -338,12 +369,15 @@ func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 	c.Assert(notices, HasLen, 1)
 	c.Check(notices[0].Key(), Equals, "valid")
 
-	// Each invalid timestamp is logged.
+	// Each zero timestamp and invalid warning notice options are logged.
 	logs := logBuf.String()
 
 	c.Check(logs, Matches, `(?s).*Notice 2 \(public:change-update:no-first-occurred\) skipped due to invalid first-occurred time.*`)
 	c.Check(logs, Matches, `(?s).*Notice 3 \(public:change-update:no-last-occurred\) skipped due to invalid last-occurred time.*`)
 	c.Check(logs, Matches, `(?s).*Notice 4 \(public:change-update:no-last-repeated\) skipped due to invalid last-repeated time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 5 \(public:warning:bad-last-shown\) skipped due to invalid option: invalid last-shown time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 6 \(public:warning:bad-show-after\) skipped due to invalid option: invalid show-after duration.*`)
+	c.Check(logs, Matches, `(?s).*Notice 7 \(public:warning:no-expire-after\) skipped due to invalid option: empty expire-after duration.*`)
 }
 
 func (s *noticesSuite) TestString(c *C) {
@@ -371,7 +405,8 @@ func (s *noticesSuite) TestString(c *C) {
 		"first-occurred": "2023-09-01T05:23:01Z",
 		"last-occurred": "2023-09-01T07:23:02Z",
 		"last-repeated": "2023-09-01T06:23:03.123456789Z",
-		"occurrences": 2
+		"occurrences": 2,
+		"expire-after": "168h0m0s"
 	}`)
 	err = json.Unmarshal(noticeJSON, &notice)
 	c.Assert(err, IsNil)
@@ -385,7 +420,7 @@ func (s *noticesSuite) TestType(c *C) {
 	st.Lock()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	addNotice(c, st, nil, state.WarningNotice, "danger!", nil)
+	st.Warnf("danger!")
 	st.Unlock()
 
 	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
@@ -401,13 +436,20 @@ func (s *noticesSuite) TestType(c *C) {
 	c.Check(notices[0].Type(), Equals, state.WarningNotice)
 }
 
+func (s *noticesSuite) TestAddNoticeForWarningError(c *C) {
+	st := state.New(nil)
+	id, err := st.AddNotice(nil, state.WarningNotice, "warning", nil)
+	c.Assert(err, ErrorMatches, "cannot create warning notices with AddNotice")
+	c.Assert(id, Equals, "")
+}
+
 func (s *noticesSuite) TestOccurrences(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "foo.com/bar", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	st.Unlock()
@@ -509,7 +551,7 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 	st.Lock()
 	defer st.Unlock()
 
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", &state.AddNoticeOptions{
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/bar", &state.AddNoticeOptions{
 		RepeatAfter: first,
 	})
 	time.Sleep(time.Microsecond)
@@ -528,7 +570,7 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 	// Add a notice (with faked time) after a long time and ensure it has repeated
 	future := time.Now().Add(delay)
 	restore := state.MockNextNoticeTimestamp(future)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", &state.AddNoticeOptions{
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/bar", &state.AddNoticeOptions{
 		RepeatAfter: second,
 	})
 	restore()
@@ -578,9 +620,9 @@ func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, &uid2, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &uid2, state.WarningNotice, "Warning 1!", nil)
+	addNotice(c, st, &uid2, state.InterfacesRequestsPromptNotice, "prompt1", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "Warning 2!", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "prompt2", nil)
 	st.Unlock()
 
 	// No filter
@@ -600,11 +642,11 @@ func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 	c.Check(n["key"], Equals, "123")
 	n = noticeToMap(c, notices[1])
 	c.Check(n["user-id"], Equals, float64(uid2))
-	c.Check(n["type"], Equals, "warning")
-	c.Check(n["key"], Equals, "Warning 1!")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
+	c.Check(n["key"], Equals, "prompt1")
 	n = noticeToMap(c, notices[2])
-	c.Check(n["type"], Equals, "warning")
-	c.Check(n["key"], Equals, "Warning 2!")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
+	c.Check(n["key"], Equals, "prompt2")
 }
 
 func (s *noticesSuite) TestNoticesFilterType(c *C) {
@@ -617,9 +659,9 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "Warning 1!", nil)
+	st.Warnf("Warning 1!")
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "Warning 2!", nil)
+	st.Warnf("Warning 2!")
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 	st.Unlock()
@@ -680,11 +722,11 @@ func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/bar", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "example.com/x", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "example.com/x", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/baz", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/baz", nil)
 	st.Unlock()
 
 	// No filter
@@ -700,7 +742,7 @@ func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "example.com/x")
 
 	// Multiple keys
@@ -711,11 +753,11 @@ func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 	c.Assert(notices, HasLen, 2)
 	n = noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/bar")
 	n = noticeToMap(c, notices[1])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/baz")
 }
 
@@ -723,7 +765,7 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/x", nil)
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
@@ -731,7 +773,7 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	c.Assert(err, IsNil)
 
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/y", nil)
 	st.Unlock()
 
 	// After unset
@@ -743,7 +785,7 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	c.Assert(notices, HasLen, 1)
 	n = noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/y")
 }
 
@@ -752,15 +794,15 @@ func (s *noticesSuite) TestNoticesFilterBeforeOrAt(c *C) {
 
 	st.Lock()
 
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/x", nil)
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/y", nil)
 
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/z", nil)
 
 	st.Unlock()
 
@@ -777,11 +819,11 @@ func (s *noticesSuite) TestNoticesFilterBeforeOrAt(c *C) {
 	c.Assert(notices, HasLen, 2)
 	n = noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/x")
 	n = noticeToMap(c, notices[1])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/y")
 }
 
@@ -792,8 +834,8 @@ func (s *noticesSuite) TestDrainNotices(c *C) {
 
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	addNotice(c, st, nil, state.WarningNotice, "danger!", nil)
-	addNotice(c, st, nil, state.WarningNotice, "something else", nil)
+	st.Warnf("danger!")
+	st.Warnf("something else")
 
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 4)
@@ -836,11 +878,11 @@ func (s *noticesSuite) TestNotice(c *C) {
 	uid1 := uint32(0)
 	uid2 := uint32(123)
 	uid3 := uint32(1000)
-	addNotice(c, st, &uid1, state.WarningNotice, "foo.com/x", nil)
+	addNotice(c, st, &uid1, state.InterfacesRequestsPromptNotice, "foo.com/x", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &uid2, state.WarningNotice, "foo.com/y", nil)
+	addNotice(c, st, &uid2, state.InterfacesRequestsPromptNotice, "foo.com/y", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, &uid3, state.WarningNotice, "foo.com/z", nil)
+	addNotice(c, st, &uid3, state.InterfacesRequestsPromptNotice, "foo.com/z", nil)
 	st.Unlock()
 
 	notices := st.Notices(nil)
@@ -853,7 +895,7 @@ func (s *noticesSuite) TestNotice(c *C) {
 	c.Assert(notice, NotNil)
 	n = noticeToMap(c, notice)
 	c.Check(n["user-id"], Equals, 123.0)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/y")
 }
 
@@ -868,7 +910,7 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	backend := &fakeStateBackend{}
 	st := state.New(backend)
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/bar", nil)
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
 
@@ -881,7 +923,7 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/bar")
 }
 
@@ -922,12 +964,12 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 
 	old := time.Now().Add(-8 * 24 * time.Hour)
 	restore := state.MockNextNoticeTimestamp(old)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", nil)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/w", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/x", nil)
 	restore()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/y", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/z", nil)
 
 	c.Assert(st.NumNotices(), Equals, 4)
 	st.Prune(time.Now(), 0, 0, 0)
@@ -945,9 +987,9 @@ func (s *noticesSuite) TestWaitNoticesExisting(c *C) {
 	st := state.New(nil)
 
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
-	addNotice(c, st, nil, state.WarningNotice, "example.com/x", nil)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/baz", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "example.com/x", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/baz", nil)
 	st.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -957,7 +999,7 @@ func (s *noticesSuite) TestWaitNoticesExisting(c *C) {
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "example.com/x")
 }
 
@@ -968,8 +1010,8 @@ func (s *noticesSuite) TestWaitNoticesNew(c *C) {
 		time.Sleep(10 * time.Millisecond)
 		st.Lock()
 		defer st.Unlock()
-		addNotice(c, st, nil, state.WarningNotice, "example.com/x", nil)
-		addNotice(c, st, nil, state.WarningNotice, "example.com/y", nil)
+		addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "example.com/x", nil)
+		addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "example.com/y", nil)
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -1031,7 +1073,7 @@ func (s *noticesSuite) TestWaitNoticesLongPoll(c *C) {
 	go func() {
 		for i := 0; i < 10; i++ {
 			st.Lock()
-			addNotice(c, st, nil, state.WarningNotice, fmt.Sprintf("a.b/%d", i), nil)
+			addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, fmt.Sprintf("a.b/%d", i), nil)
 			st.Unlock()
 			time.Sleep(time.Millisecond)
 		}
@@ -1067,7 +1109,7 @@ func (s *noticesSuite) TestWaitNoticesBeforeOrAtFilter(c *C) {
 	// If we ask for notices before now and there are notices matching the
 	// filter, return them immediately
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "existing", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "existing", nil)
 	st.Unlock()
 	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{BeforeOrAt: time.Now()})
 	c.Assert(err, IsNil)
@@ -1087,9 +1129,9 @@ func (s *noticesSuite) TestWaitNoticesBeforeOrAtFilter(c *C) {
 		st.Lock()
 		defer st.Unlock()
 		time.Sleep(10 * time.Millisecond)
-		addNotice(c, st, nil, state.WarningNotice, "hay", nil)
+		addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "hay", nil)
 		time.Sleep(10 * time.Millisecond)
-		addNotice(c, st, nil, state.WarningNotice, "needle", nil)
+		addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "needle", nil)
 	}()
 	notices, err = st.WaitNotices(ctx, &state.NoticeFilter{
 		BeforeOrAt: time.Now().Add(time.Second),
@@ -1113,7 +1155,7 @@ func (s *noticesSuite) TestWaitNoticesBeforeOrAtFilter(c *C) {
 				// create another notice
 			}
 			st.Lock()
-			addNotice(c, st, nil, state.WarningNotice, "foo", nil)
+			addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo", nil)
 			st.Unlock()
 			time.Sleep(time.Millisecond)
 		}
@@ -1151,7 +1193,7 @@ func (s *noticesSuite) TestWaitNoticesConcurrent(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	for i := 0; i < numWaiters; i++ {
-		addNotice(c, st, nil, state.WarningNotice, fmt.Sprintf("a.b/%d", i), nil)
+		addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, fmt.Sprintf("a.b/%d", i), nil)
 		time.Sleep(time.Microsecond)
 	}
 
@@ -1192,6 +1234,31 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	id, err = st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil)
 	c.Check(err, ErrorMatches, `internal error: cannot add refresh-inhibit notice with invalid key "123": only "-" key is supported`)
 	c.Check(id, Equals, "")
+
+	// Warning with no options
+	err = state.ValidateNotice(state.WarningNotice, "danger", nil)
+	c.Check(err, ErrorMatches, "cannot add warning notice with no options")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data: map[string]string{"show-after": "16d"},
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with invalid show-after duration: .*")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data: map[string]string{"last-shown": "2000"},
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with invalid last-shown time: .* cannot parse .*")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		ExpireAfter: 0,
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with empty expire-after duration")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data:        map[string]string{"last-shown": "2000-01-01T15:00:00Z", "show-after": "1h"},
+		ExpireAfter: time.Hour,
+	})
+	c.Check(err, IsNil)
 }
 
 func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
@@ -1201,23 +1268,23 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 	restore := state.MockTime(testDate)
 	defer restore()
 
-	c.Check(st.GetLastNoticeTimestamp().IsZero(), Equals, true)
+	c.Check(st.LastNoticeTimestamp().IsZero(), Equals, true)
 
 	ts1 := st.NextNoticeTimestamp()
 	c.Check(ts1, Equals, testDate)
 
-	c.Check(st.GetLastNoticeTimestamp(), Equals, ts1)
+	c.Check(st.LastNoticeTimestamp(), Equals, ts1)
 
 	ts2 := st.NextNoticeTimestamp()
 	c.Check(ts2.After(ts1), Equals, true)
 
-	c.Check(st.GetLastNoticeTimestamp(), Equals, ts2)
+	c.Check(st.LastNoticeTimestamp(), Equals, ts2)
 
 	ts3 := st.NextNoticeTimestamp()
 	c.Check(ts3.After(ts1), Equals, true)
 	c.Check(ts3.After(ts2), Equals, true)
 
-	c.Check(st.GetLastNoticeTimestamp(), Equals, ts3)
+	c.Check(st.LastNoticeTimestamp(), Equals, ts3)
 
 	// Set time.Now() earlier
 	testDate2 := testDate.Add(-5 * time.Second)
@@ -1229,27 +1296,27 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 	c.Check(ts4.After(ts2), Equals, true)
 	c.Check(ts4.After(ts3), Equals, true)
 
-	c.Check(st.GetLastNoticeTimestamp(), Equals, ts4)
+	c.Check(st.LastNoticeTimestamp(), Equals, ts4)
 }
 
 func (s *noticesSuite) TestHandleReportedLastNoticeTimestamp(c *C) {
 	st := state.New(nil)
 
-	c.Check(st.GetLastNoticeTimestamp().IsZero(), Equals, true)
+	c.Check(st.LastNoticeTimestamp().IsZero(), Equals, true)
 
 	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 21, time.UTC)
 	st.HandleReportedLastNoticeTimestamp(testDate)
-	c.Check(st.GetLastNoticeTimestamp(), Equals, testDate)
+	c.Check(st.LastNoticeTimestamp(), Equals, testDate)
 
 	// Earlier timestamp should *not* update last notice timestamp
 	earlier := testDate.Add(-5 * time.Second)
 	st.HandleReportedLastNoticeTimestamp(earlier)
-	c.Check(st.GetLastNoticeTimestamp(), Equals, testDate)
+	c.Check(st.LastNoticeTimestamp(), Equals, testDate)
 
 	// Later timestamp should update it
 	later := testDate.Add(time.Second)
 	st.HandleReportedLastNoticeTimestamp(later)
-	c.Check(st.GetLastNoticeTimestamp(), Equals, later)
+	c.Check(st.LastNoticeTimestamp(), Equals, later)
 }
 
 func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {

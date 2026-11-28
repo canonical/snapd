@@ -21,25 +21,20 @@ package state
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"sort"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
 )
 
 var (
-	defaultWarningRepeatAfter = time.Hour * 24
+	defaultWarningShowAfter   = time.Hour * 24
 	defaultWarningExpireAfter = time.Hour * 24 * 28
-
-	errNoWarningMessage     = errors.New("warning has no message")
-	errBadWarningMessage    = errors.New("malformed warning message")
-	errNoWarningFirstAdded  = errors.New("warning has no first-added timestamp")
-	errNoWarningExpireAfter = errors.New("warning has no expire-after duration")
 )
 
+// jsonWarning is not used to marshal warnings to state. It is only used for marshalling
+// warnings out over the API, and for the backwards-compatible warnings migration to notices.
 type jsonWarning struct {
 	Message     string     `json:"message"`
 	FirstAdded  time.Time  `json:"first-added"`
@@ -49,132 +44,189 @@ type jsonWarning struct {
 	RepeatAfter string     `json:"repeat-after,omitempty"`
 }
 
+// migrateWarnings migrates the old warning structs found when unmarshalling
+// state to warnings backed by notices.
+func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+	now := timeNow()
+	for _, w := range oldWarnings {
+		if w.FirstAdded.IsZero() {
+			logger.Noticef("warning skipped in migration: empty first-added")
+			continue
+		}
+		if w.LastAdded.IsZero() {
+			logger.Noticef("warning skipped in migration: empty last-added")
+			continue
+		}
+		expireAfter, err := time.ParseDuration(w.ExpireAfter)
+		if err != nil {
+			expireAfter = defaultWarningExpireAfter
+		}
+		if w.LastAdded.Add(expireAfter).Before(now) {
+			continue
+		}
+
+		data := map[string]string{}
+		showAfter, err := time.ParseDuration(w.RepeatAfter)
+		if err != nil {
+			showAfter = defaultWarningShowAfter
+		}
+		if showAfter != 0 {
+			data["show-after"] = showAfter.String()
+		}
+		if w.LastShown != nil {
+			data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
+		}
+		if len(data) == 0 {
+			data = nil
+		}
+		if err = ValidateNotice(WarningNotice, w.Message, &AddNoticeOptions{
+			Data:        data,
+			ExpireAfter: expireAfter,
+		}); err != nil {
+			logger.Noticef("warning skipped in migration: %v", err)
+			continue
+		}
+
+		uniqueKey := warningNoticeKey(w.Message)
+		notice := s.noticeBackingWarning(w.Message)
+		// "last-repeated" needs to be unique for the backing notice.
+		timestamp := s.ensureUniqueNoticeTimestamp(w.LastAdded)
+		if notice == nil || notice.Expired(now) {
+			// no warning notice with the same message or a warning notice with that
+			// message has expired.
+			s.lastNoticeId++
+			notice = NewNotice(strconv.Itoa(s.lastNoticeId), nil, WarningNotice, w.Message, timestamp, data, 0, expireAfter)
+			notice.firstOccurred = w.FirstAdded
+		} else {
+			// only preserve the notice's "last-shown" value if the warning
+			// being migrated does not have a "last-shown" value
+			var preserve []string
+			if w.LastShown == nil {
+				preserve = []string{"last-shown"}
+			}
+			notice, _ = notice.Reoccur(timestamp, data, preserve, 0)
+		}
+		s.notices[uniqueKey] = notice
+	}
+}
+
+// ensureUniqueNoticeTimestamp returns the given timestamp if there are no
+// existing non-expired notices with an identical timestamp. Otherwise, it
+// adds 1 nanosecond repeatedly until it finds an unused notice timestamp.
+// It then updates the state's last notice timestamp if the unique timestamp
+// is newer, and returns the unique timestamp.
+//
+// The caller must hold noticesMu for writing, so that the returned value
+// remains unique until the notice is recorded.
+func (s *State) ensureUniqueNoticeTimestamp(t time.Time) time.Time {
+	for _, n := range s.doNotices(nil) {
+		if n.lastRepeated.After(t) {
+			break
+		}
+		if n.lastRepeated.Equal(t) {
+			t = t.Add(time.Nanosecond)
+		}
+	}
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	if t.After(s.lastNoticeTimestamp) {
+		s.lastNoticeTimestamp = t
+	}
+	return t
+}
+
 type Warning struct {
-	// the warning text itself. Only one of these in the system at a time.
-	message string
-	// the first time one of these messages was created
-	firstAdded time.Time
-	// the last time one of these was created
-	lastAdded time.Time
-	// the last time one of these was shown to the user
-	lastShown time.Time
-	// how much time since one of these was last added should we drop the message
-	expireAfter time.Duration
-	// how much time since one of these was last shown should we repeat it
-	repeatAfter time.Duration
+	// The notice which backs this warning. Warning-specific fields will be
+	// extracted and parsed as needed from the lastData map.
+	notice *Notice
 }
 
 func (w *Warning) String() string {
-	return w.message
+	return w.notice.key
+}
+
+func (w *Warning) firstAdded() time.Time {
+	return w.notice.firstOccurred
+}
+
+func (w *Warning) lastAdded() time.Time {
+	// Since repeatAfter is always 0 for warnings, the value for
+	// lastOccurred and lastRepeated are equal. Notices are
+	// guaranteed to be sorted by their lastRepeated and
+	// lastAdded is used as the timestamp for warnings in
+	// WarningSummary, Therefore, lastAdded is set to lastRepeated.
+	return w.notice.lastRepeated
+}
+
+func (w *Warning) lastShown() (time.Time, error) {
+	var t time.Time
+	lastShownStr, ok := w.notice.lastData["last-shown"]
+	if !ok || lastShownStr == "" {
+		// no "last-shown"
+		return t, nil
+	}
+	t, err := time.Parse(time.RFC3339Nano, lastShownStr)
+	if err != nil {
+		return t, fmt.Errorf("cannot parse last-shown timestamp from string: %w", err)
+	}
+	return t, nil
+}
+
+func (w *Warning) expireAfter() time.Duration {
+	return w.notice.expireAfter
+}
+
+func (w *Warning) showAfter() (time.Duration, error) {
+	// use "show-after" instead of "repeat-after" to make it clear that this is
+	// about "show" in the warnings sense, unrelated to notices repeatAfter.
+	showAfterStr, ok := w.notice.lastData["show-after"]
+	if !ok || showAfterStr == "" {
+		// no "show-after"
+		return 0, nil
+	}
+	showAfter, err := time.ParseDuration(showAfterStr)
+	if err != nil {
+		return 0, fmt.Errorf("cannot parse show-after duration from string: %w", err)
+	}
+	return showAfter, nil
 }
 
 func (w *Warning) MarshalJSON() ([]byte, error) {
 	jw := jsonWarning{
-		Message:     w.message,
-		FirstAdded:  w.firstAdded,
-		LastAdded:   w.lastAdded,
-		ExpireAfter: w.expireAfter.String(),
-		RepeatAfter: w.repeatAfter.String(),
+		Message:     w.String(),
+		FirstAdded:  w.firstAdded(),
+		LastAdded:   w.lastAdded(),
+		ExpireAfter: w.expireAfter().String(),
 	}
-	if !w.lastShown.IsZero() {
-		jw.LastShown = &w.lastShown
+	// Safe to use lastShown and showAfter since warning notices
+	// are validated on creation and state load.
+	if lastShown, _ := w.lastShown(); !lastShown.IsZero() {
+		jw.LastShown = &lastShown
 	}
+	// The "omitempty" directive in the jsonWarning was and remains always
+	// unused. RepeatAfter is always set with an absent show-after rendered
+	// as "0s".
+	showAfter, _ := w.showAfter()
+	jw.RepeatAfter = showAfter.String()
 
 	return json.Marshal(jw)
 }
 
-func (w *Warning) UnmarshalJSON(data []byte) error {
-	var jw jsonWarning
-	err := json.Unmarshal(data, &jw)
-	if err != nil {
-		return err
-	}
-	w.message = jw.Message
-	w.firstAdded = jw.FirstAdded
-	w.lastAdded = jw.LastAdded
-	if jw.LastShown != nil {
-		w.lastShown = *jw.LastShown
-	}
-	if jw.ExpireAfter != "" {
-		w.expireAfter, err = time.ParseDuration(jw.ExpireAfter)
-		if err != nil {
-			return err
-		}
-	}
-	if jw.RepeatAfter != "" {
-		w.repeatAfter, err = time.ParseDuration(jw.RepeatAfter)
-		if err != nil {
-			return err
-		}
-	}
-
-	return w.validate()
-}
-
-func (w *Warning) validate() (e error) {
-	if w.message == "" {
-		return errNoWarningMessage
-	}
-	if strings.TrimSpace(w.message) != w.message {
-		return errBadWarningMessage
-	}
-	if w.firstAdded.IsZero() {
-		return errNoWarningFirstAdded
-	}
-	if w.expireAfter == 0 {
-		return errNoWarningExpireAfter
-	}
-
-	return nil
-}
-
-func (w *Warning) ExpiredBefore(now time.Time) bool {
-	return w.lastAdded.Add(w.expireAfter).Before(now)
+func (w *Warning) Expired(now time.Time) bool {
+	return w.notice.Expired(now)
 }
 
 func (w *Warning) ShowAfter(t time.Time) bool {
-	if w.lastShown.IsZero() {
+	lastShown, err := w.lastShown()
+	if err != nil || lastShown.IsZero() {
 		// warning was never shown before; was it added after the cutoff?
-		return !w.firstAdded.After(t)
+		return !w.firstAdded().After(t)
 	}
-
-	return w.lastShown.Add(w.repeatAfter).Before(t)
-}
-
-// flattenWarning loops over the warnings map, and returns all
-// non-expired warnings therein as a flat list, for serialising.
-//
-// State lock does not need to be held, as the warnings mutex ensures
-// warnings can be safely read.
-func (s *State) flattenWarnings() []*Warning {
-	s.warningsMu.RLock()
-	defer s.warningsMu.RUnlock()
-	now := time.Now()
-	flat := make([]*Warning, 0, len(s.warnings))
-	for _, w := range s.warnings {
-		if w.ExpiredBefore(now) {
-			continue
-		}
-		flat = append(flat, w)
-	}
-	return flat
-}
-
-// unflattenWarnings takes a flat list of warnings and replaces the
-// warning map with them, ignoring expired warnings in the process.
-//
-// Call with the state lock held. Acquires the warnings lock for writing.
-func (s *State) unflattenWarnings(flat []*Warning) {
-	s.warningsMu.Lock()
-	defer s.warningsMu.Unlock()
-	now := time.Now()
-	s.warnings = make(map[string]*Warning, len(flat))
-	for _, w := range flat {
-		if w.ExpiredBefore(now) {
-			continue
-		}
-		s.warnings[w.message] = w
-	}
+	// Treat invalid "show-after" as the same as showAfter of 0
+	showAfter, _ := w.showAfter()
+	return lastShown.Add(showAfter).Before(t)
 }
 
 // Warnf records a warning: if it's the first Warning with this
@@ -189,18 +241,15 @@ func (s *State) Warnf(template string, args ...any) {
 		message = template
 	}
 	s.AddWarning(message, &AddWarningOptions{
-		RepeatAfter: defaultWarningRepeatAfter,
+		ShowAfter: defaultWarningShowAfter,
 	})
 }
 
 // AddWarningOptions holds optional parameters for an AddWarning call.
 type AddWarningOptions struct {
-	// RepeatAfter defines how long after this warning was last shown we
+	// ShowAfter defines how long after this warning was last shown we
 	// should allow it to repeat. Zero means always repeat.
-	RepeatAfter time.Duration
-
-	// Time, if set, overrides time.Now() as the warning lastAdded time.
-	Time time.Time
+	ShowAfter time.Duration
 }
 
 // AddWarning records a warning with the specified message and options.
@@ -210,32 +259,36 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	s.writing()
-	s.warningsMu.Lock()
-	defer s.warningsMu.Unlock()
+	// Hold the notices mutex for the duration of the function, since we need
+	// to look up the existing notice to preserve the lastShown value.
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
 
-	now := options.Time
-	if now.IsZero() {
-		now = timeNow()
-	}
-	now = now.UTC()
-
-	warning, ok := s.warnings[message]
-	if !ok {
-		warning = &Warning{
-			message:     message,
-			firstAdded:  now,
-			expireAfter: defaultWarningExpireAfter,
-		}
-		if err := warning.validate(); err != nil {
-			// programming error!
-			logger.Panicf("internal error, please report: attempted to add invalid warning: %v", err)
-			return
-		}
-		s.warnings[message] = warning
+	addNoticeOptions := &AddNoticeOptions{
+		Data: map[string]string{},
+		// If the warning is not expired, preserve the last-shown value.
+		PreserveDataKeys: []string{"last-shown"},
+		// Always repeat warning notices. The ShowAfter field in the warning
+		// options is really about when a warning should be re-shown to a user,
+		// and is unrelated to notice RepeatAfter. We always want to repeat the
+		// notice so that the warning data is up to date.
+		RepeatAfter: 0,
+		ExpireAfter: defaultWarningExpireAfter,
 	}
 
-	warning.lastAdded = now
-	warning.repeatAfter = options.RepeatAfter
+	if options.ShowAfter != 0 {
+		addNoticeOptions.Data["show-after"] = options.ShowAfter.String()
+	}
+
+	if len(addNoticeOptions.Data) == 0 {
+		addNoticeOptions.Data = nil
+	}
+
+	_, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions)
+	if err != nil {
+		// warning notice failed validation.
+		logger.Panicf("%v", err)
+	}
 }
 
 // RemoveWarning removes a warning given its message.
@@ -243,33 +296,76 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 // Returns state.ErrNoState if no warning exists with given message.
 func (s *State) RemoveWarning(message string) error {
 	s.writing()
-	s.warningsMu.Lock()
-	defer s.warningsMu.Unlock()
-	_, ok := s.warnings[message]
-	if !ok {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+
+	notice := s.noticeBackingWarning(message)
+	if notice == nil {
 		return ErrNoState
 	}
 
-	delete(s.warnings, message)
+	uniqueKey := warningNoticeKey(message)
+	delete(s.notices, uniqueKey)
 	return nil
 }
 
-type byLastAdded []*Warning
+// warningNoticeKey is a helper function that returns the noticeKey for a
+// warning with the given message.
+func warningNoticeKey(message string) noticeKey {
+	const (
+		warningNoticeHasUserID = false
+		warningNoticeUserID    = uint32(0)
+	)
+	return noticeKey{warningNoticeHasUserID, warningNoticeUserID, WarningNotice, message}
+}
 
-func (a byLastAdded) Len() int           { return len(a) }
-func (a byLastAdded) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byLastAdded) Less(i, j int) bool { return a[i].lastAdded.Before(a[j].lastAdded) }
+// noticeBackingWarning is a helper function that returns the notice
+// backing the warning with the given message.
+func (s *State) noticeBackingWarning(message string) *Notice {
+	key := warningNoticeKey(message)
+	notice, ok := s.notices[key]
+	if !ok {
+		return nil
+	}
+	return notice
+}
 
 // AllWarnings returns all the warnings in the system, whether they're
 // due to be shown or not. They'll be sorted by lastAdded.
 //
-// State lock does not need to be held, as the warnings mutex ensures
+// State lock does not need to be held, as the notices mutex ensures
 // warnings can be safely read.
 func (s *State) AllWarnings() []*Warning {
-	all := s.flattenWarnings()
-	sort.Sort(byLastAdded(all))
-
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+	all, _ := s.allWarningsNow()
 	return all
+}
+
+// allWarningsNow is a helper function to retrieve all warning notices at the
+// current time, whether they're due to be shown or not, convert those notices
+// to warnings, and return them along with that time.
+//
+// The caller must ensure that the notices mutex is locked for reading.
+func (s *State) allWarningsNow() ([]*Warning, time.Time) {
+	// Get the current time after acquiring noticesMu, so that we're certain to
+	// retrieve all notices with a lastRepeated timestamp before the timestamp
+	// we return, and it's impossible to add a new notice to the state with a
+	// timestamp before now.
+	now := timeNow().UTC()
+	if last := s.getLastNoticeTimestamp(); last.After(now) {
+		now = last
+	}
+	noticeFilter := &NoticeFilter{Types: []NoticeType{WarningNotice}}
+	allWarningNotices := s.doNotices(noticeFilter)
+
+	// "Convert" each warning notice to a Warning
+	all := make([]*Warning, len(allWarningNotices))
+	for i, n := range allWarningNotices {
+		all[i] = &Warning{notice: n}
+	}
+
+	return all, now
 }
 
 // OkayWarnings marks warnings that were showable at the given time as shown.
@@ -277,13 +373,22 @@ func (s *State) OkayWarnings(t time.Time) int {
 	t = t.UTC()
 
 	s.writing()
-	s.warningsMu.Lock()
-	defer s.warningsMu.Unlock()
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+
+	warnings, _ := s.allWarningsNow()
 
 	n := 0
-	for _, w := range s.warnings {
+	for _, w := range warnings {
 		if w.ShowAfter(t) {
-			w.lastShown = t
+			// Update the "last-shown" value, but notices cannot be mutated,
+			// so replace the existing one via replaceWarningNoticeData.
+			newData := make(map[string]string, len(w.notice.lastData))
+			for k, v := range w.notice.lastData {
+				newData[k] = v
+			}
+			newData["last-shown"] = t.Format(time.RFC3339Nano)
+			s.replaceWarningNoticeData(w, newData)
 			n++
 		}
 	}
@@ -291,29 +396,47 @@ func (s *State) OkayWarnings(t time.Time) int {
 	return n
 }
 
-// PendingWarnings returns the list of warnings to show the user, sorted by
-// lastAdded, and a timestamp than can be used to refer to these warnings.
+// replaceWarningNoticeData creates a deep copy of the given warning, replaces
+// its lastData with the given data, and replaces the original notice with the
+// new one in the snapd state. The caller must hold both noticesMu and state
+// lock.
+func (s *State) replaceWarningNoticeData(w *Warning, newData map[string]string) {
+	newNotice := w.notice.DeepCopy()
+	newNotice.lastData = newData
+	uniqueKey := warningNoticeKey(w.String())
+	s.notices[uniqueKey] = newNotice
+}
+
+// pendingWarnings is a helper function that returns the list of warnings
+// to show the user, sorted by lastAdded, and a timestamp that can be used
+// to refer to these warnings.
 //
-// Warnings to show to the user are those that have not been shown before,
-// or that have been shown earlier than repeatAfter ago.
-//
-// State lock does not need to be held, as the warnings mutex ensures
-// warnings can be safely read.
-func (s *State) PendingWarnings() ([]*Warning, time.Time) {
-	s.warningsMu.RLock()
-	defer s.warningsMu.RUnlock()
-	now := time.Now().UTC()
+// The caller must ensure that the notices mutex is locked for reading.
+func (s *State) pendingWarnings() ([]*Warning, time.Time) {
+	all, now := s.allWarningsNow()
 
 	var toShow []*Warning
-	for _, w := range s.warnings {
+	for _, w := range all {
 		if !w.ShowAfter(now) {
 			continue
 		}
 		toShow = append(toShow, w)
 	}
-
-	sort.Sort(byLastAdded(toShow))
 	return toShow, now
+}
+
+// PendingWarnings returns the list of warnings to show the user, sorted by
+// lastAdded, and a timestamp that can be used to refer to these warnings.
+//
+// Warnings to show to the user are those that have not been shown before,
+// or that have been shown earlier than repeatAfter ago.
+//
+// State lock does not need to be held, as the notices mutex ensures
+// warnings can be safely read.
+func (s *State) PendingWarnings() ([]*Warning, time.Time) {
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+	return s.pendingWarnings()
 }
 
 // WarningsSummary returns the number of warnings that are ready to be
@@ -321,20 +444,28 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 // warning (useful for silencing the warning alerts, and OKing the
 // returned warnings).
 //
-// State lock does not need to be held, as the warnings mutex ensures
+// State lock does not need to be held, as the notices mutex ensures
 // warnings can be safely read.
 func (s *State) WarningsSummary() (int, time.Time) {
-	s.warningsMu.RLock()
-	defer s.warningsMu.RUnlock()
-	now := time.Now().UTC()
-	var last time.Time
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
 
+	now := timeNow().UTC()
+	if timestamp := s.getLastNoticeTimestamp(); timestamp.After(now) {
+		now = timestamp
+	}
+
+	noticeFilter := &NoticeFilter{Types: []NoticeType{WarningNotice}}
+	allWarningNotices := s.filterNotices(noticeFilter)
+
+	var last time.Time
 	var n int
-	for _, w := range s.warnings {
+	for _, notice := range allWarningNotices {
+		w := Warning{notice: notice}
 		if w.ShowAfter(now) {
 			n++
-			if w.lastAdded.After(last) {
-				last = w.lastAdded
+			if w.lastAdded().After(last) {
+				last = w.lastAdded()
 			}
 		}
 	}
@@ -346,9 +477,17 @@ func (s *State) WarningsSummary() (int, time.Time) {
 // warnings. For use in debugging.
 func (s *State) UnshowAllWarnings() {
 	s.writing()
-	s.warningsMu.Lock()
-	defer s.warningsMu.Unlock()
-	for _, w := range s.warnings {
-		w.lastShown = time.Time{}
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+	all, _ := s.allWarningsNow()
+	for _, w := range all {
+		// Remove "last-shown" value, but notices cannot be mutated,
+		// so replace the existing one via replaceWarningNoticeData.
+		newData := make(map[string]string, len(w.notice.lastData))
+		for k, v := range w.notice.lastData {
+			newData[k] = v
+		}
+		delete(newData, "last-shown")
+		s.replaceWarningNoticeData(w, newData)
 	}
 }
