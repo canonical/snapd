@@ -64,6 +64,17 @@ var (
 	ExecuteMountProfileUpdate = executeMountProfileUpdate
 )
 
+// MockNeededChangesBackingMatches replaces the backing-match check used by
+// NeededChanges to detect stale bind entries, and restores the old value when
+// the returned function is called.
+func MockNeededChangesBackingMatches(f func(osutil.MountEntry) bool) (restore func()) {
+	old := mountEntryBackingMatches
+	mountEntryBackingMatches = f
+	return func() {
+		mountEntryBackingMatches = old
+	}
+}
+
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
 	OsLstat(name string) (os.FileInfo, error)

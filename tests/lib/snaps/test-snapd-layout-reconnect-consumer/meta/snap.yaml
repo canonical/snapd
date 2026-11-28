@@ -1,0 +1,24 @@
+name: test-snapd-layout-reconnect-consumer
+version: 1.0
+base: core24
+summary: Content consumer reading through a layout
+description: |
+    Content consumer whose layout source lives inside the content interface
+    mount target. The attached-content directory is empty, mirroring the
+    layout source stub directories that snaps built with core26 and later
+    bases are required to carry.
+grade: stable
+confinement: strict
+
+apps:
+    app:
+        command: bin/app
+
+plugs:
+    content:
+        interface: content
+        target: $SNAP/attached-content
+
+layout:
+    /srv/test-layout-reconnect:
+        bind: $SNAP/attached-content

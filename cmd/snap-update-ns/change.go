@@ -691,6 +691,121 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		skipDir = strings.TrimSuffix(dir, "/") + "/"
 	}
 
+	// Bind mounts capture the underlying filesystem object at the time they are
+	// created. Entries can be sourced from paths that resolve through another
+	// mount entry (e.g. a layout whose source lives under, or at the root of, a
+	// content interface mount target). When such a mount point is added,
+	// removed or changes its source, bind entries sourced through it must be
+	// re-created, otherwise they keep serving the previously captured backing
+	// (e.g. an empty directory stub instead of the connected content, or a
+	// pinned old provider revision). Compute the set of mount points that are
+	// changing and un-reuse affected entries until the set is stable.
+	isBindEntry := func(e osutil.MountEntry) bool {
+		return e.OptBool("bind") || e.OptBool("rbind")
+	}
+	// strictlyBelow reports whether path lies strictly below dir.
+	strictlyBelow := func(path, dir string) bool {
+		return strings.HasPrefix(path, strings.TrimSuffix(dir, "/")+"/")
+	}
+	changingDirs := make(map[string]bool)
+	for _, e := range current {
+		if !reuse[mountEntryId{e.Dir, e.Type}] {
+			changingDirs[e.Dir] = true
+		}
+	}
+	for _, e := range desired {
+		if !reuse[mountEntryId{e.Dir, e.Type}] {
+			changingDirs[e.Dir] = true
+		}
+	}
+	// Mount points that entries may be sourced from; used by the staleness
+	// check for entries that would otherwise be kept.
+	sourceParentDirs := make(map[string]bool)
+	for _, e := range current {
+		sourceParentDirs[e.Dir] = true
+	}
+	for _, e := range desired {
+		sourceParentDirs[e.Dir] = true
+	}
+	// Mount points shared by more than one entry, i.e. stacked mounts: a
+	// writable mimic mounts a tmpfs over the original directory, hiding the
+	// bind created for the entry that lives at the same mount point. Statting
+	// the destination path of a stacked entry reports the top-most mount
+	// rather than the backing of that entry, so such entries must be excluded
+	// from the staleness check below, otherwise they would be re-made on
+	// every update without ever settling.
+	stackedDirs := make(map[string]bool)
+	{
+		dirCount := make(map[string]int)
+		for _, e := range current {
+			dirCount[e.Dir]++
+		}
+		for dir, count := range dirCount {
+			if count > 1 {
+				stackedDirs[dir] = true
+			}
+		}
+	}
+	for {
+		// Note: the loop body only removes entries from reuse, so the
+		// outcome does not depend on the iteration order; entries are
+		// checked for staleness before their dependents are re-made, which
+		// is the required order.
+		remade := false
+		for i := range current {
+			e := current[i]
+			id := mountEntryId{e.Dir, e.Type}
+			if !reuse[id] || e.XSnapdOrigin() == "rootfs" {
+				continue
+			}
+			name := filepath.Clean(e.Name)
+			stale := false
+			for dir := range changingDirs {
+				// The source of the bind resolves through a mount point that
+				// is changing: either strictly below it, or at its very root
+				// (unless the entry is mounted at that same mount point
+				// itself, where a stacked sibling entry changed). Also re-make
+				// entries mounted strictly inside a mount point that is
+				// changing, as they would be shadowed by the new mount.
+				if strictlyBelow(name, dir) || (name == dir && dir != e.Dir) || strictlyBelow(e.Dir, dir) {
+					stale = true
+					break
+				}
+			}
+			// Staleness check for entries that would otherwise be kept: the
+			// profiles did not change, but the actual backing of the bind may
+			// have been replaced behind the profiles (e.g. an entry recorded
+			// when its content mount was not connected yet, or pinned to an
+			// old provider revision). The check compares the bind source path
+			// with the destination, which is only meaningful when the
+			// destination is not itself an ancestor of the source (the source
+			// would resolve through the destination mount), and when the
+			// entry is not stacked under another mount at the same mount
+			// point (stat would report the top-most mount). On stat errors
+			// the entry is conservatively treated as matching, so that a
+			// transient failure cannot cause mount churn.
+			if !stale && isBindEntry(e) && !stackedDirs[e.Dir] && !strictlyBelow(name, e.Dir) {
+				for dir := range sourceParentDirs {
+					if strictlyBelow(name, dir) || (name == dir && dir != e.Dir) {
+						if !mountEntryBackingMatches(e) {
+							stale = true
+						}
+						break
+					}
+				}
+			}
+			if stale {
+				logger.Debugf("not reusing entry %q: sourced from a changed mount", e)
+				delete(reuse, id)
+				changingDirs[e.Dir] = true
+				remade = true
+			}
+		}
+		if !remade {
+			break
+		}
+	}
+
 	logger.Debugf("desiredIDs: %v", desiredIDs)
 	logger.Debugf("reuse: %v", reuse)
 
@@ -855,4 +970,27 @@ func findFirstRootDirectoryThatExists(desiredParentDir string) string {
 // entries from the current profile may be reused.
 var NeededChanges = func(current, desired *osutil.MountProfile) []*Change {
 	return neededChanges(current, desired)
+}
+
+// mountEntryBackingMatches reports whether the filesystem object currently
+// visible at the destination of a bind entry (entry.Dir) is the same as the
+// object at its source (entry.Name). Bind mounts capture the underlying object
+// at bind time; when the source path is re-mounted (e.g. a content interface
+// mount appears or changes revision), a previously created bind keeps serving
+// the old object. Comparing device and inode numbers detects such stale binds.
+//
+// The variable is a hook so that tests can simulate stat results without
+// touching the filesystem. On stat errors the entry is conservatively treated
+// as matching, so that a transient failure cannot cause mount churn.
+var mountEntryBackingMatches = func(entry osutil.MountEntry) bool {
+	var srcSt, dstSt syscall.Stat_t
+	if err := syscall.Stat(entry.Name, &srcSt); err != nil {
+		logger.Debugf("cannot stat bind source %q: %s", entry.Name, err)
+		return true
+	}
+	if err := syscall.Stat(entry.Dir, &dstSt); err != nil {
+		logger.Debugf("cannot stat bind destination %q: %s", entry.Dir, err)
+		return true
+	}
+	return srcSt.Dev == dstSt.Dev && srcSt.Ino == dstSt.Ino
 }

@@ -1,0 +1,15 @@
+name: test-snapd-layout-reconnect-provider
+version: 2.0
+base: core24
+summary: Content provider sharing a canary file
+description: |
+    Content provider sharing its whole root filesystem tree, with a canary
+    file at the root that consumers can read through their layouts.
+grade: stable
+confinement: strict
+
+slots:
+    content:
+        interface: content
+        read:
+            - /
