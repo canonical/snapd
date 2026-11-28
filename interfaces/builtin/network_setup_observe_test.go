@@ -79,6 +79,11 @@ func (s *NetworkSetupObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/netplan")
+	// netplan tooling always parses the full /lib + /etc + /run config
+	// hierarchy (e.g. subiquitycore's configs_in_root()), so mirror
+	// network-setup-control and allow reading fragments staged under
+	// /run/netplan as well.
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/run/netplan/{,**} r,`)
 }
 
 func (s *NetworkSetupObserveInterfaceSuite) TestInterfaces(c *C) {

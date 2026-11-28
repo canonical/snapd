@@ -62,6 +62,7 @@ unix (bind) type=stream addr="@[0-9a-fA-F]*/bus/busctl/*",
 /run/systemd/network/*-netplan-* w,
 /run/NetworkManager/conf.d/{,**} r,
 /run/NetworkManager/conf.d/*netplan*.conf* w,
+/run/netplan/{,**} r,
 /usr/libexec/netplan/configure ixr,
 
 /run/udev/rules.d/ rw,                 # needed for cloud-init
