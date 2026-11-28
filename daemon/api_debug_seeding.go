@@ -86,7 +86,7 @@ func getSeedingInfo(st *state.State) Response {
 	var seedErrorChangeTime time.Time
 	if !seeded {
 		for _, chg := range st.Changes() {
-			if chg.Kind() != "seed" && !chg.IsReady() {
+			if chg.Kind() != "seed" || !chg.IsReady() {
 				continue
 			}
 			if err := chg.Err(); err != nil {

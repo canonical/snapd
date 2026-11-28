@@ -216,3 +216,26 @@ func (s *seedingDebugSuite) TestSeedingDebugPreseededSeedError(c *C) {
 - t12 (t12: fail)`,
 	})
 }
+
+func (s *seedingDebugSuite) TestSeedingDebugIgnoresNonSeedChangeErrors(c *C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+
+	st.Set("seeded", false)
+
+	// a failed change unrelated to seeding
+	chg := st.NewChange("install-snap", "install a snap")
+	t := st.NewTask("download-snap", "download")
+	chg.AddTask(t)
+	t.SetStatus(state.ErrorStatus)
+	t.Errorf("unrelated failure")
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), NotNil)
+
+	st.Unlock()
+
+	data := s.getSeedingDebug(c)
+	c.Check(data, DeepEquals, &daemon.SeedingInfo{
+		Seeded: false,
+	})
+}
