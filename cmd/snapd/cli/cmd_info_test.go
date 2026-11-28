@@ -603,6 +603,59 @@ func (s *infoSuite) TestMaybePrintBase(c *check.C) {
 	buf.Reset()
 }
 
+func (s *infoSuite) TestMaybePrintBuildBase(c *check.C) {
+	kernel := func(buildBase string) *client.Snap {
+		return &client.Snap{Name: "pc-kernel", Type: "kernel", BuildBase: buildBase}
+	}
+
+	for _, t := range []struct {
+		comment    string
+		verbose    bool
+		localSnap  *client.Snap
+		remoteSnap *client.Snap
+		diskSnap   *client.Snap
+		expected   string
+	}{{
+		comment:   "installed kernel",
+		verbose:   true,
+		localSnap: kernel("core24"),
+		expected:  "build-base:\tcore24\n",
+	}, {
+		comment:   "installed kernel without build-base",
+		verbose:   true,
+		localSnap: kernel(""),
+	}, {
+		comment:   "installed kernel, not verbose",
+		localSnap: kernel("core24"),
+	}, {
+		comment:   "installed snap that is not a kernel",
+		verbose:   true,
+		localSnap: &client.Snap{Name: "some-app", Type: "app", BuildBase: "core24"},
+	}, {
+		comment:    "kernel that is not installed",
+		verbose:    true,
+		remoteSnap: kernel("core24"),
+	}, {
+		comment:  "kernel from a file",
+		verbose:  true,
+		diskSnap: kernel("core24"),
+		expected: "build-base:\tcore24\n",
+	}} {
+		comment := check.Commentf("%s", t.comment)
+
+		var buf flushBuffer
+		iw := snap.NewInfoWriter(&buf)
+		snap.SetVerbose(iw, t.verbose)
+		if t.diskSnap != nil {
+			snap.SetupDiskSnap(iw, "", t.diskSnap)
+		} else {
+			snap.SetupSnap(iw, t.localSnap, t.remoteSnap, nil)
+		}
+		snap.MaybePrintBuildBase(iw)
+		c.Check(buf.String(), check.Equals, t.expected, comment)
+	}
+}
+
 func (s *infoSuite) TestMaybePrintPath(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
@@ -626,10 +679,80 @@ func (s *infoSuite) TestClientSnapFromPath(c *check.C) {
 	fn := snaptest.MakeTestSnapWithFiles(c, `
 name: some-snap
 version: 9
+type: kernel
+build-base: core24
 `, nil)
 	dSnap, err := snap.ClientSnapFromPath(fn)
 	c.Assert(err, check.IsNil)
 	c.Check(dSnap.Version, check.Equals, "9")
+	c.Check(dSnap.Type, check.Equals, "kernel")
+	c.Check(dSnap.Base, check.Equals, "")
+	// a kernel snap file is not the installed kernel
+	c.Check(dSnap.BuildBase, check.Equals, "")
+}
+
+func (s *infoSuite) TestInfoKernelFileDoesNotShowBuildBase(c *check.C) {
+	fn := snaptest.MakeTestSnapWithFiles(c, `
+name: some-kernel
+version: 9
+type: kernel
+build-base: core24
+`, nil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", fn})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stdout(), check.Matches, "(?s).*\\ntype: +kernel\\n.*")
+	c.Check(s.Stdout(), check.Not(check.Matches), "(?s).*build-base.*")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *infoSuite) TestInfoInstalledKernelBuildBase(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "GET")
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			c.Check(r.URL.Query().Get("name"), check.Equals, "pc-kernel")
+			fmt.Fprint(w, `{
+				"type": "sync",
+				"status-code": 200,
+				"result": [{
+					"name": "pc-kernel",
+					"type": "kernel",
+					"summary": "A test kernel",
+					"description": "A test kernel",
+					"confinement": "strict"
+				}]
+			}`)
+		case 1:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/pc-kernel")
+			fmt.Fprint(w, `{
+				"type": "sync",
+				"status-code": 200,
+				"result": {
+					"name": "pc-kernel",
+					"type": "kernel",
+					"build-base": "core24",
+					"status": "active",
+					"summary": "A test kernel",
+					"description": "A test kernel",
+					"confinement": "strict"
+				}
+			}`)
+		default:
+			c.Fatalf("expected 2 requests, now on %d (%v)", n+1, r)
+		}
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", "pc-kernel"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(n, check.Equals, 2)
+	c.Check(s.Stdout(), check.Matches, "(?s).*\\ntype: +kernel\\nbuild-base: +core24\\n.*")
+	c.Check(s.Stderr(), check.Equals, "")
 }
 
 func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {

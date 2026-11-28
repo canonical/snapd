@@ -1645,6 +1645,78 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshFailures(c *check.C) {
 	c.Check(snapInfo.RefreshFailures, check.DeepEquals, expectedRefreshFailures)
 }
 
+func (s *snapsSuite) TestSnapInfoReturnsKernelBuildBase(c *check.C) {
+	s.expectSnapsNameReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "pc-kernel", "canonical", "v1", snap.R(5), true, `type: kernel
+build-base: core24
+`)
+
+	req, err := http.NewRequest("GET", "/v2/snaps/pc-kernel", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+	c.Check(snapInfo.Type, check.Equals, string(snap.TypeKernel))
+	c.Check(snapInfo.Base, check.Equals, "")
+	c.Check(snapInfo.BuildBase, check.Equals, "core24")
+
+	encoded, err := json.Marshal(snapInfo)
+	c.Assert(err, check.IsNil)
+	var wire map[string]any
+	c.Assert(json.Unmarshal(encoded, &wire), check.IsNil)
+	c.Check(wire["build-base"], check.Equals, "core24")
+	_, hasBase := wire["base"]
+	c.Check(hasBase, check.Equals, false)
+}
+
+func (s *snapsSuite) TestSnapInfoOmitsBuildBaseUnlessInstalledKernel(c *check.C) {
+	s.expectSnapsNameReadAccess()
+	d := s.daemon(c)
+	// a kernel that does not declare a build-base
+	s.mkInstalledInState(c, d, "pc-kernel", "canonical", "v1", snap.R(5), true, "type: kernel\n")
+	// only the kernel is expected to report its build-base
+	s.mkInstalledInState(c, d, "some-app", "canonical", "v1", snap.R(5), true, "build-base: core24\n")
+	s.mkInstalledInState(c, d, "some-gadget", "canonical", "v1", snap.R(5), true, "type: gadget\nbuild-base: core24\n")
+
+	for _, name := range []string{"pc-kernel", "some-app", "some-gadget"} {
+		req, err := http.NewRequest("GET", "/v2/snaps/"+name, nil)
+		c.Assert(err, check.IsNil)
+		rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+		c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+		snapInfo := rsp.Result.(*client.Snap)
+		c.Check(snapInfo.BuildBase, check.Equals, "", check.Commentf("snap %q", name))
+
+		encoded, err := json.Marshal(snapInfo)
+		c.Assert(err, check.IsNil)
+		var wire map[string]any
+		c.Assert(json.Unmarshal(encoded, &wire), check.IsNil)
+		_, hasBuildBase := wire["build-base"]
+		c.Check(hasBuildBase, check.Equals, false, check.Commentf("snap %q", name))
+	}
+}
+
+func (s *snapsSuite) TestSnapManyInfosBuildBaseOnlyForInstalledKernel(c *check.C) {
+	s.expectSnapsReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "pc-kernel", "canonical", "v1", snap.R(5), true, "type: kernel\nbuild-base: core24\n")
+	s.mkInstalledInState(c, d, "some-app", "canonical", "v1", snap.R(5), true, "build-base: core24\n")
+
+	req, err := http.NewRequest("GET", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.jsonReq(c, req, nil, actionIsExpected)
+
+	buildBases := make(map[string]any)
+	for _, sn := range snapList(rsp.Result) {
+		if buildBase, ok := sn["build-base"]; ok {
+			buildBases[sn["name"].(string)] = buildBase
+		}
+	}
+	c.Check(buildBases, check.DeepEquals, map[string]any{"pc-kernel": "core24"})
+}
+
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	media := snap.MediaInfos{
 		{
