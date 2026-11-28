@@ -86,7 +86,7 @@ post:
                       `check-pin-quality`; and
                     - the updated system details for action `fix-encryption-support`.
                 anyOf:
-                  - $ref: '../components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml'
+                  - $ref: '../components/schemas/GenerateRecoveryKeyResponse.yaml'
                   - $ref: '../components/schemas/SystemActionCheckAuthQualityResponse.yaml'
                   - $ref: '../components/schemas/SystemDetails.yaml'
                   - type: object

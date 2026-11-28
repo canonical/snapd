@@ -2,8 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 type: object
-title: SystemActionInstallGenerateRecoveryKeyResponse
-description: Response body containing the generated recovery key for step `generate-recovery-key` of action `install`.
+title: GenerateRecoveryKeyResponse
+description: >-
+  Response body containing the generated recovery key, for the
+  `generate-recovery-key` step of the `install` action on
+  `POST /v2/systems/{label}` and for the `generate-recovery-key` action on
+  `POST /v2/systems`.
 required:
   - recovery-key
 properties:

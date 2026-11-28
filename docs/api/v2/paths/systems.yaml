@@ -3,40 +3,63 @@
 
 get:
   tags:
-    - OpenAccess
+    - AuthenticatedAccess
     - Systems
     - Synchronous
-  summary: Get the list of recovery systems
-  description: Retrieves a list of all available recovery systems on the device.
+  summary: Get the list of recovery systems or the running system's details
+  description: |-
+    Retrieves a list of all available recovery systems on the device. If the
+    'running' query parameter is set to 'true', returns
+    the details of the currently running system.
   operationId: getSystems
-  security: []
+  security:
+    - PeerAuth: []
+  parameters:
+    - name: running
+      in: query
+      description: |-
+        If set to 'true', returns the details of the currently
+        running system instead of the list of all recovery systems. When set to 'true', the request requires root peer
+        credentials or polkit authorization. Requests from a snap (over snapd-snap.socket) additionally require the
+        'snap-fde-control' interface to be connected.
+      schema:
+        type: boolean
   responses:
     200:
-      description: A list of recovery systems.
+      description: |-
+        A list of recovery systems, or, if 'running=true' is provided, the
+        details of the currently running system.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              systems:
-                type: array
-                items:
-                  $ref: '../components/schemas/System.yaml'
-    404:
-      $ref: '../components/responses/NotFound.yaml'
+            anyOf:
+              - type: object
+                properties:
+                  systems:
+                    type: array
+                    items:
+                      $ref: '../components/schemas/System.yaml'
+              - $ref: '../components/schemas/SystemDetails.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'
+
 post:
   tags:
-    - AuthenticatedAccess
+    - ByActionAccess
     - Systems
     - Asynchronous # Actions like 'create' and 'install' are async
     - Synchronous
   summary: Perform an action on the current recovery system or create a new one
   description: |-
-    Perform an action such as 'reboot', 'install' on the current active recovery
-    system, or 'create' a new recovery system.
+    Perform an action such as 'reboot', 'install', or 'fix-encryption-support'
+    on the current active recovery system, or 'create' a new recovery
+    system. Actions 'reboot', 'install', and 'create' require root access.
+    Action 'fix-encryption-support' requires root peer credentials or polkit
+    authorization. Requests from a snap (over snapd-snap.socket) additionally
+    require the 'snap-fde-control' interface to be connected.
   operationId: performSystemAction
   security:
-    - PeerAuth: [] # TODO This was originally designated as root auth, investigate
+    - PeerAuth: []
   requestBody:
     required: true
     content:
@@ -46,14 +69,53 @@ post:
             - $ref: '../components/schemas/SystemActionCreate.yaml'
             - $ref: '../components/schemas/SystemActionInstall.yaml'
             - $ref: '../components/schemas/SystemActionReboot.yaml'
+            - $ref: '../components/schemas/SystemActionFixEncryptionSupport.yaml'
+            - $ref: '../components/schemas/SystemActionGenerateRecoveryKey.yaml'
+            - $ref: '../components/schemas/SystemActionReprovision.yaml'
       # TODO document multipart/form-data
   responses:
     200:
-      description: The action was successfully initiated (for synchronous actions like reboot).
+      description: The action was handled synchronously.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                description: |-
+                  The result of the synchronous operation, specific to each action:
+                    - `null` for action `reboot`;
+                    - the updated system details for action `fix-encryption-support`; and
+                    - the generated recovery key for action `generate-recovery-key`.
+                anyOf:
+                  - $ref: '../components/schemas/SystemDetails.yaml'
+                  - $ref: '../components/schemas/GenerateRecoveryKeyResponse.yaml'
+                  - type: object
+                    nullable: true
+                    enum:
+                      - null
     202:
-      description: The asynchronous action (e.g., create, install) was accepted and is in progress.
+      description: >-
+        The asynchronous action (e.g., create, install, reprovision) was
+        accepted and is in progress.
       $ref: '../components/responses/Accepted.yaml'
     400:
       $ref: '../components/responses/BadRequest.yaml'
     404:
       $ref: '../components/responses/NotFound.yaml'
+    409:
+      $ref: '../components/responses/Conflict.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'

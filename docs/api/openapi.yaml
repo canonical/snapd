@@ -151,6 +151,8 @@ components:
       $ref: './v2/components/schemas/ConnectionStatus.yaml'
     FindResult:
       $ref: './v2/components/schemas/FindResult.yaml'
+    GenerateRecoveryKeyResponse:
+      $ref: './v2/components/schemas/GenerateRecoveryKeyResponse.yaml'
     InstalledSnap:
       $ref: './v2/components/schemas/InstalledSnap.yaml'
     LegacyInterfaceObject:
@@ -255,14 +257,16 @@ components:
       $ref: './v2/components/schemas/SystemActionDo.yaml'
     SystemActionFixEncryptionSupport:
       $ref: './v2/components/schemas/SystemActionFixEncryptionSupport.yaml'
+    SystemActionGenerateRecoveryKey:
+      $ref: './v2/components/schemas/SystemActionGenerateRecoveryKey.yaml'
     SystemActionInstall:
       $ref: './v2/components/schemas/SystemActionInstall.yaml'
-    SystemActionInstallGenerateRecoveryKeyResponse:
-      $ref: './v2/components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml'
     SystemActionReboot:
       $ref: './v2/components/schemas/SystemActionReboot.yaml'
     SystemActionRemove:
       $ref: './v2/components/schemas/SystemActionRemove.yaml'
+    SystemActionReprovision:
+      $ref: './v2/components/schemas/SystemActionReprovision.yaml'
     System:
       $ref: './v2/components/schemas/System.yaml'
     SystemDetails:

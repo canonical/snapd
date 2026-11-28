@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionGenerateRecoveryKey
+description: >-
+  Payload to request a new recovery key for the running system. Before
+  calling this action, the client should use `GET /v2/systems?running=true`
+  to check `storage-encryption.support`, resolving any
+  `availability-check-errors` with `fix-encryption-support` actions until
+  `support` is `available`. The client must save the generated recovery
+  key before initiating a 'reprovision' action.
+required:
+  - action
+properties:
+  action:
+    type: string
+    enum:
+      - generate-recovery-key
