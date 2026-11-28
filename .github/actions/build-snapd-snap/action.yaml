@@ -104,7 +104,9 @@ runs:
           cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
           exit 1
         fi
-        if yq '.primed-stage-packages' squashfs-root/snap/manifest.yaml | grep -q '^- libseccomp2=.*'; then
+        # libudev1 is staged by the runtime part in every recipe, and any
+        # primed stage package works as a probe here
+        if yq '.primed-stage-packages' squashfs-root/snap/manifest.yaml | grep -q '^- libudev1=.*'; then
           true
         else
           echo "primed-stage-packages missing in manifest" 1>&2

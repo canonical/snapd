@@ -40,6 +40,32 @@ confinement: strict
 #   libraries from the core22 FIPS snap. Without this stamp, use APT packages.
 #
 parts:
+  # Use the latest available libseccomp.
+  libseccomp:
+    plugin: autotools
+    source: https://git.launchpad.net/ubuntu/+source/libseccomp
+    # v2.6.0+
+    source-branch: ubuntu/resolute
+    source-type: git
+    autotools-configure-parameters:
+      - --prefix=/usr
+      # the bundled loader searches usr/lib/<triplet> before the host's /lib
+      - --libdir=/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}
+    build-packages:
+      - gperf
+      - quilt
+    override-pull: |
+      craftctl default
+      # apply the Ubuntu packaging patches, as the glibc part does
+      QUILT_PATCHES=debian/patches quilt push -a
+      # git checkout gives every file the same mtime, so make reruns autotools;
+      # refresh the generated files instead (aclocal-1.17 is not in all bases)
+      touch aclocal.m4 configure.h.in
+      find . -name Makefile.in -exec touch {} +
+      touch configure
+    prime:
+      - usr/lib/libseccomp.so.2*
+      - usr/lib/*/libseccomp.so.2*
   dynamic-linker:
     plugin: nil
     build-packages:
@@ -102,7 +128,6 @@ parts:
       - liblz4-1
       - liblzma5
       - liblzo2-2
-      - libseccomp2
       - libudev1
       - libzstd1
       - xdelta3
