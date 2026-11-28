@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - OpenAccess
+    - Synchronous
+    - Systems
+  summary: Get the full-disk encryption (FDE) status
+  description: |-
+    Retrieves the status of the system's full-disk encryption (FDE) setup. If FDE is set up and not working it provides additional details that can be used to better understand the situation.
+  operationId: getSystemInfoStorageEncrypted
+  security: []
+  responses:
+    200:
+      description: A synchronous response containing the FDE status.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                $ref: '../components/schemas/FDEStatus.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'

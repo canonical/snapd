@@ -149,6 +149,8 @@ components:
       $ref: './v2/components/schemas/Connection.yaml'
     ConnectionStatus:
       $ref: './v2/components/schemas/ConnectionStatus.yaml'
+    FDEStatus:
+      $ref: './v2/components/schemas/FDEStatus.yaml'
     FindResult:
       $ref: './v2/components/schemas/FindResult.yaml'
     InstalledSnap:
@@ -361,6 +363,8 @@ paths:
     $ref: './v2/paths/systems-label.yaml'
   /v2/system-info:
     $ref: './v2/paths/system-info.yaml'
+  /v2/system-info/storage-encrypted:
+    $ref: './v2/paths/system-info-storage-encrypted.yaml'
   /v2/users:
     $ref: './v2/paths/users.yaml'
   /v2/validation-sets:
