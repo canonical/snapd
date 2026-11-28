@@ -11718,6 +11718,9 @@ func (s *snapmgrTestSuite) testSaveMonitoredRefreshCandidatesOnAutoRefreshThrott
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -11746,8 +11749,17 @@ func (s *snapmgrTestSuite) testSaveMonitoredRefreshCandidatesOnAutoRefreshThrott
 	// simulate existing refresh hint from older refresh with
 	// some-other-snap being monitored
 	cands := map[string]*snapstate.RefreshCandidate{
-		"some-other-snap": {Monitored: true},
-		"snap-c":          {},
+		"some-other-snap": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{RealName: "some-other-snap", Revision: snap.R(2)},
+			},
+			Monitored: true,
+		},
+		"snap-c": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{RealName: "snap-c", Revision: snap.R(2)},
+			},
+		},
 	}
 	s.state.Set("refresh-candidates", &cands)
 
@@ -11824,6 +11836,92 @@ func (s *snapmgrTestSuite) testSaveMonitoredRefreshCandidatesOnAutoRefreshThrott
 	c.Assert(newCands, HasLen, 2)
 	c.Check(newCands["some-snap"], NotNil)
 	c.Check(newCands["some-other-snap"], NotNil)
+
+	// snap-c was throttled by the store and not retried (not monitored);
+	// verify it was logged
+	c.Check(logbuf.String(), testutil.Contains, `auto-refresh: snaps with available updates deferred by the store: "snap-c"`)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshThrottleDetectionNotLoggedForAlreadyRefreshed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// snap-c is already at revision 2 (the target from refresh-candidates),
+	// meaning it was already refreshed since the last hints query
+	snapstate.Set(s.state, "snap-c", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snap-c", SnapID: "snap-c-id", Revision: snap.R(2)},
+		}),
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+
+	// refresh-candidates says snap-c has an update to R(2), but the snap
+	// is already at R(2), so it should not be reported as throttled
+	cands := map[string]*snapstate.RefreshCandidate{
+		"snap-c": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{RealName: "snap-c", Revision: snap.R(2)},
+			},
+		},
+	}
+	s.state.Set("refresh-candidates", &cands)
+
+	// store returns current revision (R(2)) for snap-c
+	sto := customStore{fakeStore: s.fakeStore}
+	sto.customSnapAction = func(ctx context.Context, cs []*store.CurrentSnap, sa []*store.SnapAction, aq store.AssertionQuery, us *auth.UserState, ro *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+		var actionResult []store.SnapActionResult
+		for _, cur := range cs {
+			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: cur.SnapID})
+			c.Assert(err, IsNil)
+			info.Revision = cur.Revision
+			actionResult = append(actionResult, store.SnapActionResult{Info: info})
+		}
+		return actionResult, nil, nil
+	}
+	snapstate.ReplaceStore(s.state, &sto)
+
+	_, _, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+
+	// snap-c was already refreshed, so it should NOT be logged as throttled
+	c.Check(logbuf.String(), Not(testutil.Contains), "deferred by the store")
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshThrottleDetectionNotLoggedForRemovedSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// refresh-candidates has a stale entry for snap-c, but snap-c
+	// is no longer installed (it was removed since the last hints query)
+	cands := map[string]*snapstate.RefreshCandidate{
+		"snap-c": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{RealName: "snap-c", Revision: snap.R(2)},
+			},
+		},
+	}
+	s.state.Set("refresh-candidates", &cands)
+
+	// store returns current revision for any snap it's asked about
+	sto := customStore{fakeStore: s.fakeStore}
+	sto.customSnapAction = func(ctx context.Context, cs []*store.CurrentSnap, sa []*store.SnapAction, aq store.AssertionQuery, us *auth.UserState, ro *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+		return nil, nil, nil
+	}
+	snapstate.ReplaceStore(s.state, &sto)
+
+	_, _, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+
+	// snap-c was removed, so it should NOT be logged as throttled
+	c.Check(logbuf.String(), Not(testutil.Contains), "deferred by the store")
 }
 
 func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {

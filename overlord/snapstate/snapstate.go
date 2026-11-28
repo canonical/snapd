@@ -1779,6 +1779,7 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && sts.ts != nil {
 				// snap is busy and pre-download tasks were made for it
+				logger.Noticef("cannot auto-refresh snap %q: %v", up.Setup.InstanceName(), err)
 				sts.ts.JoinLane(st.NewLane())
 				predownloadTSS = append(predownloadTSS, sts.ts)
 				continue

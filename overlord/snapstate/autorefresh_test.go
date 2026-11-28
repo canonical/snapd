@@ -1076,6 +1076,9 @@ func (s *autoRefreshTestSuite) TestInhibitManualRefresh(c *C) {
 func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
 	s.addRefreshableSnap("foo")
 
+	logbuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
 	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
@@ -1091,6 +1094,9 @@ func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
 	chgs := s.state.Changes()
 	c.Assert(chgs, HasLen, 1)
 	checkPreDownloadChange(c, chgs[0], "foo", snap.R(8))
+
+	// verify the running-app inhibition was logged during auto-refresh
+	c.Check(logbuf.String(), testutil.Contains, `cannot auto-refresh snap "foo": snap "foo" has running apps or hooks, pids: 123`)
 }
 
 func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c *C) {
